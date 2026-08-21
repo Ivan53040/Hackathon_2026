@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+._*
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+.vite/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# 本機憑證（vite-plugin-mkcert）
+*.pem
+.cert/
+
+# 遙測資料（server/PLAN.md §7，不要進版控）
+data/telemetry.jsonl
+
+# 編輯器
+.idea/
+.vscode/*
+!.vscode/extensions.json
