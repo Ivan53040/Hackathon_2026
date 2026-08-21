@@ -1,15 +1,18 @@
 # RUNESPIRE — 後端開發計劃 (BACKEND PLAN)
 
-> **v3 — 依「筆當魔杖」正式遊戲規格改寫。** 這份文件涵蓋**伺服器、網路協定、部署**。
+> **v4 — 依簡化後的遊戲規格改寫。** 這份文件涵蓋**伺服器、網路協定、部署**。
 > 瀏覽器端請看 [`../frontend/PLAN.md`](../frontend/PLAN.md)。
 > 執行用打勾清單在 [`CHECKLIST.md`](./CHECKLIST.md)。
+> 設計決策見 [`../.design/`](../.design/)。
 >
 > **擁有者：E。預估 ~350 行 + 部署，一個人 5 小時。**
 >
-> **v2 → v3 對後端的影響（只有一句話）：**
-> **`state` 訊息多了 `mp`、`covers`、`pitch`、`targetFloor`，`winner` 改成擊殺判定——
-> 但伺服器依然完全不解析內容，所以後端的程式碼幾乎不用改。**
-> 唯一要動的是 `protocol.ts` 的型別名稱同步，與 `maxPayload` 的重新確認（§5.6）。
+> **v3 → v4 對後端的影響：協定變小了，伺服器程式碼一行都不用改。**
+> 刪掉的欄位：`floor` · `pitch` · `targetFloor` · `shieldUntil` · `fromFloor` · `toFloor`。
+> 刪掉的法術：`lightning` · `shield`。**`spell` 白名單剩兩個：`attack` / `wall`。**
+>
+> ⚠️ **E 唯一要動的是 `protocol.ts` 的驗證白名單。**
+> 照 v3 的白名單寫下去，**會擋掉前端送的合法訊息**——這是唯一會出事的地方。
 
 ---
 
@@ -35,7 +38,7 @@
 ❌ 後端辨識：軌跡 64 點 → HTTP/WS → 伺服器 $1 → 回傳 → 施法
    延遲 80–250ms。網路一抖 = 施法失效 = demo 死亡
 
-✅ 前端辨識：筆尖 → 本地 $1 (3ms) → { spell, targetFloor, score } 約 60 bytes → 送出
+✅ 前端辨識：筆尖 → 本地 $1 (3ms) → { spell, score } 約 50 bytes → 送出
    延遲 <5ms。離線也能打 bot
 ```
 **伺服器不該知道什麼是三角形，也不該知道什麼是牆。**
@@ -73,8 +76,8 @@ server/
 ├── telemetry.ts    施法紀錄 JSONL + 摘要                                ~50 行
 └── README.md       5 行手寫，說明怎麼跑
 ```
-> `protocol.ts` 的型別要跟前端 `src/core/types.ts` **名稱一致**（v3 新增 `Cover`、`WizardState.mp`、
-> `WizardState.pitch`、`WizardState.targetFloor`）。
+> `protocol.ts` 的型別要跟前端 `src/core/types.ts` **名稱一致**
+> （v4：`Cover` 只有 `id/owner/x/bornAt`；`WizardState` 只有 `id/x/hp/mp/alive/casting/castProgress`）。
 > 36 小時內不做 monorepo 共享，**手動保持同步，改動必須在群組講一聲。**
 
 ---
@@ -153,7 +156,7 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 { "type":"welcome", "playerId":"p_ab12de", "role":"host", "code":"FLUX", "peers":1 }
 ```
 
-### 5.2 訊息表（★ = v3 變更）
+### 5.2 訊息表（★ = v4 變更）
 
 ```jsonc
 // ── server → 雙方 ──────────────────────────────
@@ -163,31 +166,25 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 { "type":"error",      "code":"ROOM_FULL", "message":"..." }
 
 // ── client → server，15Hz（伺服器原樣轉發給另一人）─
-// ★ aim(三態字串) 換成 pitch(連續) + targetFloor(離散)
-{ "type":"input", "seq":812, "floor":1, "x":0.42,
-  "pitch":0.35, "targetFloor":2,
+// ★ v4 刪掉 floor / pitch / targetFloor —— 單層，x 是唯一的位置維度
+{ "type":"input", "seq":812, "x":0.42,
   "casting":true, "castProgress":0.6 }
 
 // ── client → server，事件觸發 ──────────────────
-// ★ spell 多了 "wall"；aim 換成 targetFloor
-{ "type":"cast", "spell":"fireball"|"lightning"|"shield"|"wall",
-  "targetFloor":2, "score":0.91, "durationMs":1180 }
+// ★ v4：spell 只有兩個，沒有 targetFloor
+{ "type":"cast", "spell":"attack"|"wall", "score":0.91, "durationMs":1180 }
 { "type":"rematch" }
 
 // ── host → server → guest，15Hz ────────────────
-// ★ host/guest 改成陣列（為 2v2 留門，1v1 時長度 1）
-// ★ 每個 wizard 多了 mp / alive / pitch / targetFloor
-// ★ 新增 covers 陣列
+// host/guest 是陣列（為 2v2 留門，1v1 時長度 1）
+// ★ v4：wizard 只剩 7 個欄位；cover 沒有 floor；projectile 帶 fromX
 { "type":"state", "tick":812, "ackSeq":810,
-  "host":  [ { "id":"h0","floor":0,"x":0.3,"pitch":0,"targetFloor":0,
-               "hp":10,"mp":64,"alive":true,
-               "casting":false,"castProgress":0,"shieldUntil":0 } ],
-  "guest": [ { "id":"g0","floor":2,"x":0.7,"pitch":-0.5,"targetFloor":1,
-               "hp":7,"mp":30,"alive":true,
-               "casting":true,"castProgress":0.4,"shieldUntil":0 } ],
-  "covers":[ { "id":7,"owner":"guest","floor":2,"x":0.62,"bornAt":1724200012345 } ],
-  "projectiles":[ { "id":41,"owner":"host","spell":"fireball",
-                    "fromFloor":0,"toFloor":2,"progress":0.4 } ],
+  "host":  [ { "id":"h0","x":0.30,"hp":10,"mp":64,"alive":true,
+               "casting":false,"castProgress":0 } ],
+  "guest": [ { "id":"g0","x":0.70,"hp":7,"mp":30,"alive":true,
+               "casting":true,"castProgress":0.4 } ],
+  "covers":[ { "id":7,"owner":"guest","x":0.62,"bornAt":1724200012345 } ],
+  "projectiles":[ { "id":41,"owner":"host","progress":0.4,"fromX":0.30 } ],
   "timeLeft":47, "winner":null }
 
 // ── 雙向 ───────────────────────────────────────
@@ -198,12 +195,16 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 ### 5.3 🔴 為什麼 wire 格式用 `host`/`guest` 而不是 `me`/`them`
 
 `me`/`them` 是**視角**詞彙——host 的 `me` 是 guest 的 `them`。
-一旦用它當 wire 格式，guest 端的血量會互換、投射物方向會反、左右塔會顛倒，
+一旦用它當 wire 格式，guest 端的血量會互換、投射物方向會反、左右場地會顛倒，
 而且症狀長得像「渲染 bug」，你會在 D 的資料夾裡 debug 兩小時，錯的地方在 `net/`。
 
-**v3 讓這件事嚴重十倍：`covers` 也帶 `owner`。**
+**`covers` 也帶 `owner`，讓這件事嚴重十倍。**
 搞錯的話 guest 端會變成「敵人的牆保護我、我的牆擋住敵人」，**規則整個反過來**，
 而且看起來完全不像網路 bug。
+
+**★ v4 又加了一層：C3「被牆擋住就完全看不到對手」。**
+`owner` 反了的話，guest 會在**不該隱形的時候隱形**——
+畫面上對手憑空消失，看起來像掉線，實際上是 `toLocalView()` 寫錯。
 
 **規則：wire 上永遠是絕對角色 `host`/`guest`。前端在 `net/` 邊界做一次視角轉換
 （`toLocalView()`，見 `../frontend/PLAN.md` §3），之後全遊戲只講 me/them。**
@@ -213,10 +214,13 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 - guest 送 `input` + `cast`，本地做插值與立即的 VFX 預測（拖尾、法陣），
   但 **HP / MP / 命中 / 遮蔽物的生滅一律以 host 的 `state` 為準**
 - **命中判定、遮蔽物判定、視線判定 100% 由 host 決定**
-- guest 端的頭頂數值牌 `???` 由 guest 自己依收到的 `covers` 算（純顯示，不影響規則）
+- **★ v4：C3 的可見性（誰看得到誰）由每個 client 自己依收到的 `covers` 算，不進 wire 格式。**
+  它是純顯示狀態，不影響規則，而且兩邊算出來的結果本來就不同
 - 不用 rollback、不用 lockstep、不用預測回滾
 
-**為什麼可以這麼粗暴：** 這個遊戲是**離散樓層 + 慢速投射物 + 靜態遮蔽物**，100ms 延遲肉眼看不出來。
+**為什麼可以這麼粗暴：** 這個遊戲是**單層 + 慢速投射物 + 靜態遮蔽物**，100ms 延遲肉眼看不出來。
+★ v4 拿掉連續 `pitch` 之後這一點更成立了——**再也沒有任何需要逐幀平滑的連續值**，
+`x` 是唯一會連續變化的欄位，而它插值起來很便宜。
 唯一會被看出來的是「蓋牆的瞬間」——所以 **guest 端可以在本地先播蓋牆特效，但那面牆要等 host 的 `state` 才算數**。
 牆位置差一點沒人看得出來，牆存不存在不一致才會出事。
 
@@ -229,9 +233,9 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 ```
 **伺服器不看 `spell` 是什麼，不看 `hp` 合不合理，不看 `mp` 夠不夠，不看牆蓋在哪。**
 
-### 5.6 ★ v3 訊息大小重新確認（30 秒的事，但不做會在最糟的時間爆掉）
-`state` 訊息長大了：2 個 wizard × ~10 欄位 + 最多 4 面牆 + 投射物。
-粗估 **~600–900 bytes**，仍遠低於 `maxPayload: 16KB`。**不需要改，但要親眼確認一次：**
+### 5.6 訊息大小（v4 變小了，但還是確認一次）
+`state`：2 個 wizard × 7 欄位 + 最多 4 面牆 + 投射物。
+粗估 **~350–500 bytes**（v3 是 600–900），遠低於 `maxPayload: 16KB`。**要親眼確認一次：**
 ```bash
 # 在 host 端 console 印一次
 console.log(JSON.stringify(state).length);
@@ -255,11 +259,11 @@ console.log(JSON.stringify(state).length);
 畫面出現「對手失去連線 — 由幻影接管」
    ↓
 RemoteOpponent 就地換成 BotOpponent（術士難度），
-繼承當前 HP / MP / 位置 / 樓層 / ★ 場上所有遮蔽物
+繼承當前 HP / MP / 位置 `x` / ★ 場上所有遮蔽物
    ↓
 比賽繼續，不中斷
 ```
-> ★ **v3 重點：接管時不要清掉 `covers`。** 牆突然全部消失是全場最明顯的 glitch，
+> ★ **重點：接管時不要清掉 `covers`。** 牆突然全部消失是全場最明顯的 glitch，
 > 觀眾不知道什麼是 RemoteOpponent，但一定看得到牆憑空不見。
 
 ### 6.3 🔴 host 離線時 guest 怎麼辦（**會直接卡死，必做**）
@@ -269,13 +273,13 @@ guest 端**從來沒有跑過權威模擬**——它一直在等 `state`。host 
 ```
 1. 用最後一份 state 當作初始狀態（★ 含 covers、mp、每個 wizard 的 alive）
 2. mode: 'guest' → 'solo'，本地開始跑權威模擬
-3. them 換成 BotOpponent(warlock)，繼承 HP / MP / floor / x
+3. them 換成 BotOpponent(warlock)，繼承 HP / MP / x
 4. ★ 立刻用最後一份 covers 重建本地的遮蔽物狀態，之後由本地權威接手生滅
 5. 之後不再等任何網路訊息
 ```
 guest 離線時 host 只要 §6.2 就夠了。**兩條路徑都要在 M3 測到。**
 
-> ★ **v3 的新失敗模式**：自我提升後若忘了接手 `covers`，guest 端會出現
+> ★ **最容易漏的失敗模式**：自我提升後若忘了接手 `covers`，guest 端會出現
 > 「牆看得到但打不碎 / 打不到人」——因為本地模擬裡根本沒有那些牆。
 > **M3 驗收一定要在「場上有牆」的狀態下拔線測。**
 
@@ -296,8 +300,8 @@ POST /api/telemetry
 { "events":[
   { "t":1724200000000, "spell":"wall", "score":0.88, "ok":true,
     "source":"mediapipe", "durationMs":1180, "session":"s_x9f2" },
-  // ★ v3：魔量不足導致的失敗要分開記，不能算進辨識率
-  { "t":1724200003000, "spell":"lightning", "score":0.93, "ok":false,
+  // ★ 魔量不足導致的失敗要分開記，不能算進辨識率
+  { "t":1724200003000, "spell":"attack", "score":0.93, "ok":false,
     "reason":"no-mana", "source":"mediapipe", "durationMs":900, "session":"s_x9f2" }
 ]}
 ```
@@ -311,10 +315,8 @@ POST /api/telemetry
 GET /api/telemetry/summary
 { "total":612, "ok":541, "recognitionRate":0.883,
   "excludedNoMana":38,
-  "bySpell":{ "fireball":{"n":250,"rate":0.91},
-              "shield":{"n":198,"rate":0.86},
-              "lightning":{"n":164,"rate":0.87},
-              "wall":{"n":120,"rate":0.84} },
+  "bySpell":{ "attack":{"n":390,"rate":0.91},
+              "wall":{"n":222,"rate":0.86} },
   "bySource":{ "mediapipe":0.87, "hsv":0.93, "mouse":0.98 } }
 ```
 > ⚠️ 部署平台的檔案系統多半是暫時性的（重啟就沒了）。
@@ -432,7 +434,7 @@ npx wscat -c "ws://localhost:8787/ws/FLUX?playerId=p_test1"   # 開兩個，互�
 
 | 時段 | 內容 | 產出 |
 |---|---|---|
-| **H+0→1** | 跟前端一起唸 `types.ts`（★ 含 `Cover` / `mp` / `pitch` / `targetFloor`），確定 wire 用 host/guest | 契約定案 |
+| **H+0→1** | 跟前端一起唸 `types.ts`（v4：`Cover` / `mp`，**沒有** `floor`/`pitch`），確定 wire 用 host/guest，**確認 `spell` 白名單只有 `attack`/`wall`** | 契約定案 |
 | **H+2→8** | `index.ts` 骨架 + `rooms.ts` + HTTP API + WS 通道打通（先傳空訊息也算） | `curl` 能建房，wscat 兩端互通 |
 | **H+8→14** | 完整訊息轉發、heartbeat、驗證（★ 含陣列長度上限）、限流、GC | **M2 支援** |
 | **H+14→20** | 🔴 **部署上線，拿到 https 網址**。此後所有測試都在線上做 | 線上網址 |
@@ -458,6 +460,7 @@ npx wscat -c "ws://localhost:8787/ws/FLUX?playerId=p_test1"   # 開兩個，互�
 | 沒有 https → 沒 webcam | **高** | **致命** | 走區網 demo | §9.1 + mkcert，排練必測 |
 | ★ `covers` 的 owner 視角轉換寫錯 | **高** | **致命** | guest 端規則反過來 | §5.3 + M3 一定要用 guest 端測「我的牆保護我」 |
 | ★ 自我提升沒接手 covers | 中 | 高 | host 離線且場上有牆 | §6.3 步驟 4；M3 要在有牆時拔線 |
+| ★ `protocol.ts` 白名單停在 v3 | **高** | **高** | 驗證擋掉合法訊息 | v4 只有 `attack`/`wall`。**規格改過版，這一條最容易漏** |
 | ★ `protocol.ts` 與前端型別不同步 | **高** | 中 | 有人加欄位沒講 | 加欄位一律群組公告；伺服器不解析所以不會 crash，但驗證白名單要更新 |
 | 記憶體洩漏（房間沒清） | 中 | 中 | 跑久了變慢 | GC + loadtest |
 | 伺服器 crash | 低 | 致命 | 壞訊息 | §8 全域 catch + payload 上限 |
@@ -490,6 +493,7 @@ npx wscat -c "ws://localhost:8787/ws/FLUX?playerId=p_test1"   # 開兩個，互�
 | B10 | 送壞掉的 JSON 伺服器不 crash | `wscat` 送 `{{{` |
 | ★ B11 | **`covers` 完整轉發**：host 蓋牆，guest 端 0.2 秒內看到同一面牆 | 並排視窗 |
 | ★ B12 | **guest 端的牆保護 guest、擋 guest 自己的攻擊**（不是反過來） | 並排視窗，站在自己牆後開火 |
+| ★ B15 | **★ v4：C3 隱形方向正確**——guest 躲牆後，host 端看不到 guest（不是 guest 看不到 host） | 並排視窗 |
 | ★ B13 | **場上有牆時 host 離線 → guest 自我提升後牆還在、還能被打碎** | 並排視窗，先蓋牆再關掉 host |
 | ★ B14 | 送 `covers` 長度 100 的訊息 → 被驗證擋掉，伺服器不 crash、對方不卡死 | `wscat` |
 

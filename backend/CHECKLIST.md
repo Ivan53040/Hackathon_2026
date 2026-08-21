@@ -1,9 +1,9 @@
 # 後端執行清單 (BACKEND CHECKLIST)
 
-> **v3 — 依「筆當魔杖」正式規格更新。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
+> **v4 — 依簡化後的規格更新。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
 > 後端不是關鍵路徑，**但它的失敗是致命的**。早做完，早部署，然後把時間拿去幫整合。
 >
-> **★ = v3 新增/變更。**
+> **★ = v4 新增/變更。**
 > **一句話總結：伺服器邏輯幾乎不用改，改的是 `protocol.ts` 的型別、驗證的陣列長度上限、
 > 以及斷線降級時要記得接手 `covers`。**
 
@@ -12,9 +12,11 @@
 ## H+0 → H+1　契約
 
 - [ ] 跟前端一起逐行唸 `src/core/types.ts`
-- [ ] ★ 確認 v3 新欄位都在協定裡：**`mp` / `pitch` / `targetFloor` / `alive` / `covers[]`**
+- [ ] ★ 確認 v4 欄位：**`x` / `hp` / `mp` / `alive` / `casting` / `castProgress` / `covers[]`**
+- [ ] 🔴 ★ 確認 v3 欄位**已從驗證白名單刪掉**：`floor` · `pitch` · `targetFloor` · `shieldUntil` · `fromFloor` · `toFloor`
 - [ ] ★ 確認 `state.host` / `state.guest` 是**陣列**（1v1 時長度 1，為 2v2 留門）
-- [ ] ★ 確認 `spell` 白名單是 **`fireball` / `lightning` / `shield` / `wall`** 四個
+- [ ] 🔴 ★ 確認 `spell` 白名單只有 **`attack` / `wall`** 兩個
+      （照 v3 的四個寫下去不會 crash，但**會擋掉前端送的合法訊息**——這是規格改版最容易漏的一條）
 - [ ] ★ 確認舊的 `aim: 'up'|'level'|'down'` **已從協定移除**，不要留兩套
 - [ ] 🔴 確認 wire 格式用 **`host`/`guest`** 不用 `me`/`them`（[PLAN.md §5.3](./PLAN.md)）
       ★ **`covers[].owner` 也是 `host`/`guest`**，搞錯規則會整個反過來
@@ -153,7 +155,7 @@
 - [ ] 三條備援路徑全隊都知道：
       - Plan A 兩台 → 手機熱點 → https 網址
       - Plan B 區網 + mkcert https
-      - Plan C 單人打大法師 bot（★ v3 之後這條也很好看）
+      - Plan C 單人打大法師 bot（會蓋牆、走出牆外開火再退回，把 C2 演給觀眾看）
 
 ---
 
@@ -175,6 +177,7 @@
 | ★ B12 | guest 端：**自己的牆保護自己、擋自己的攻擊** | ☐ |
 | ★ B13 | 場上有牆時 host 離線 → guest 自我提升後牆還在、還能被打碎 | ☐ |
 | ★ B14 | 送 `covers` 長度 100 → 被擋掉，不 crash、對方不卡死 | ☐ |
+| ★ B15 | **C3 隱形方向正確**：guest 躲牆後，host 端看不到 guest（不是反過來） | ☐ |
 
 ---
 
@@ -195,7 +198,8 @@
 
 1. **沒有 https 就沒有 webcam。** 第二台筆電連 `http://192.168.x.x` 拿不到攝影機，
    遊戲當場退化成滑鼠模式，賣點全滅。→ [PLAN.md §9.1](./PLAN.md)
-2. **wire 用 `host`/`guest`，不要用 `me`/`them`。** ★ v3 的 `covers[].owner` 讓這件事嚴重十倍：
+2. **wire 用 `host`/`guest`，不要用 `me`/`them`。** ★ `covers[].owner` 讓這件事嚴重十倍，
+   而 v4 的 C3（被牆擋住＝完全看不到）又加一層——寫反了會變成「對手在不該消失的時候消失」，看起來像掉線：
    搞錯會變成「敵人的牆保護我」，**規則整個反過來**，而且完全不像網路 bug。
    → [PLAN.md §5.3](./PLAN.md)
 3. **host 離線時 guest 會靜止。** guest 從沒跑過權威模擬，必須「自我提升」，
