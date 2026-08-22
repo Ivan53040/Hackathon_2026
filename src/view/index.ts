@@ -12,7 +12,7 @@ import { EV, on } from '../core/bus';
 import { CONFIG } from '../core/config';
 import { getStroke } from '../runes';
 import { FpsCamera } from './camera';
-import { buildArena, GAP } from './arena';
+import { buildArena, GAP, type ArenaRefs } from './arena';
 import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
 import { drawHud } from '../ui/hud';
@@ -23,6 +23,8 @@ let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene;
 let fps: FpsCamera;
 let actors: Actors;
+let arena: ArenaRefs;
+let clock = 0;
 let overlay: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
 let offs: (() => void)[] = [];
@@ -43,7 +45,7 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
 
   scene = new THREE.Scene();
   fps = new FpsCamera(innerWidth / innerHeight);
-  buildArena(scene);
+  arena = buildArena(scene);
   actors = new Actors(scene);
 
   addEventListener('resize', onResize);
@@ -59,14 +61,19 @@ function onResize(): void {
 
 export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   if (!renderer) return;
+  clock += dt;
   fps.update(s.me.x, dt);
   actors.update(s, dt);
+  // 環境呼吸：星光微閃、月暈脈動。畫面完全靜止會讓人以為當機
+  (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
+  arena.stars.rotation.y = clock * 0.004;
+  (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
   renderer.render(scene, fps.cam);
 
   ctx.clearRect(0, 0, innerWidth, innerHeight);
 
   // 頭頂血魔量：投影對手的世界座標到螢幕
-  namePos.set((s.them.x - 0.5) * LANE_WIDTH, 2.35, -GAP + 1);
+  namePos.set((s.them.x - 0.5) * LANE_WIDTH, 3.05, -GAP + 1);   // 要高過尖帽
   drawNameplate(ctx, fps.cam, namePos, s.them.hp, s.them.mp, s.canSeeThemStats);
 
   drawTracers(s);
