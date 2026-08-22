@@ -38,6 +38,29 @@ const IDLE_BOB = 0.035;
 
 const toWorldX = (x: number) => (x - 0.5) * LANE_WIDTH;
 
+/*
+ * 對手 sprite 是 MeshBasicMaterial —— 這是刻意的（見 tryLoadSprite 的註解：
+ * 正面 billboard 比網格清晰）。但「不吃光照」跟「沒有被場景調過色」是兩件事。
+ * 之前每一幀都把 sprite 染成 --spell-core（接近純白），等於用 100% 貼圖亮度渲染 ——
+ * 不管場上是正午還是半夜他都一樣亮，所以他讀起來像貼在場景上，不是站在場景裡。
+ *
+ * 這裡把 romanArena.ts 的打光比例算成一個乘數：主光 --spell-core 1.35、
+ * 環境光 --struct-lit 0.30，混完再壓到 SPRITE_EXPOSURE。
+ * sprite 保持不吃光，但顏色屬於這個夜晚。
+ * ⚠️ romanArena.ts 的 hemisphere / sun 強度改了，這裡要跟著改。
+ */
+const SPRITE_KEY = 1.35;
+const SPRITE_AMBIENT = 0.30;
+const SPRITE_EXPOSURE = 0.62;
+
+function nightGrade(): THREE.Color {
+  return new THREE.Color(tok('--spell-core'))
+    .lerp(new THREE.Color(tok('--struct-lit')), SPRITE_AMBIENT / (SPRITE_KEY + SPRITE_AMBIENT))
+    .multiplyScalar(SPRITE_EXPOSURE);
+}
+
+
+
 function tok(name: string): number {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return new THREE.Color(v).getHex();
@@ -84,6 +107,7 @@ export class Actors {
   private readonly ashColor = tok('--ash');
   private readonly voidColor = tok('--void');
   private readonly themHot = new THREE.Color(this.themHotColor);
+  private readonly spriteGrade = nightGrade();
 
   constructor(private scene: THREE.Scene) {
     this.buildIds.fill(-1);
@@ -160,6 +184,8 @@ export class Actors {
     );
     this.sigil.rotation.x = -Math.PI / 2;
     this.scene.add(this.sigil);
+
+
     this.tryLoadSprite();
   }
 
@@ -223,6 +249,27 @@ export class Actors {
       new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide }),
     );
     this.sprite.position.set(0, h / 2 - 0.05, -GAP + 1);
+    /*
+     * 接地陰影。角色腳下沒有影子是業餘 3D 最明顯的破綻 —— 人會直接讀成「浮在空中」。
+     *
+     * 這裡不用地上貼一張橢圓的做法：相機在眼高 1.6 且視線水平（camera.ts 的硬規則），
+     * 對手在 7.5 公尺外，地面的入射角只有 atan(1.54 / 7.5) ≈ 11.6°。
+     * 貼在地上的橢圓在這個角度會被壓成一條線，看起來像地板髒了，不像影子。
+     *
+     * 改用場上已經有的 shadow map：sun 已經 castShadow，地面與看台都 receiveShadow，
+     * 而 sprite 有 alphaTest 0.35 —— three 的 depth material 會沿用 map 與 alphaTest
+     * （見 three 的 WebGLShadowMap.getDepthMaterial），所以投出來的是鏤空剪影，透視也對。
+     *
+     * ⚠️ 但目前這個影子在畫面上讀不出來，A/B 過：開關 castShadow 畫面沒有差別。
+     * 原因是主光在 (-9, 14, 4)，位於對手（z = −7.5）的**前方**，影子整個往 −z 倒 ——
+     * 從第一人稱看過去正好被他自己的 sprite 擋住。
+     * 試過把 sun 移到 z = −6 讓影子往相機倒：影子是出來了，但整個後方平台會被
+     * 後面的建築擋成一片暗，反而更糟，所以退回原值。
+     * 這一行留著沒有壞處（相機側移時有用），但「腳下的接地陰影」還沒解決。
+     * 真要解，要嘛給對手一盞專用的近頂光 + 自己的 shadow camera，
+     * 要嘛把對手的平台改矮讓影子有地方落。兩個都不是五分鐘的事。
+     */
+    this.sprite.castShadow = true;
     this.scene.add(this.sprite);
     this.opponent.visible = false;          // 幾何造型退場
     this.applyPoseTexture(this.poses[this.pose] ?? tex);
@@ -448,8 +495,9 @@ export class Actors {
       this.sprite.scale.set(1, 1, 1);
       this.sprite.visible = s.them.hp > 0;
 
-      // 沒有 charge 素材時，用染色代替 —— 起手的預警不能沒有
-      sm.color.setHex(this.spellCoreColor);
+      // 底色是「這個夜晚的光」，不是純白（見 nightGrade）。
+      // 起手時再往 themHot 拉 —— 從壓暗的底色往上提，預警比之前更讀得出來。
+      sm.color.copy(this.spriteGrade);
       if (s.them.casting && !this.actionTexture && !this.poses.charge) {
         sm.color.lerp(this.themHot, 0.25 + s.them.castProgress * 0.4);
       }
@@ -474,6 +522,8 @@ export class Actors {
     cm.color.setHex(this.themHotColor).multiplyScalar(glow * 1.6);
     this.crystal.scale.setScalar(s.them.casting ? 1 + s.them.castProgress * 0.5 : 1);
     this.crystal.rotation.y = this.t * 0.9;
+
+
 
     this.sigil.position.set(wx, 0.03, -GAP + 1);
     const sm = this.sigil.material as THREE.MeshBasicMaterial;

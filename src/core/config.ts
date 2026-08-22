@@ -55,5 +55,5 @@ export const CONFIG = {
   SNAP_MS: 120,                 // 符文吸附 —— 全場最值錢的動畫
   SIGIL_MAX_R: 1.4,
   PROJ_SCALE_POW: 2.4,          // 投射物尺度曲線：前慢後爆
-  BLOOM_STRENGTH: 0.9,
+  BLOOM_STRENGTH: 0.6,
 } as const;

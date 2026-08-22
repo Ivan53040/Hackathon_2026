@@ -22,6 +22,7 @@ import { drawHud } from '../ui/hud';
 import { LANE_WIDTH } from './camera';
 import { disposeWebcamPip, initWebcamPip, pauseWebcamPip, touchWebcamPip } from './pip';
 import { RuneEffects } from './runeEffects';
+import { initPostFx, renderPostFx, resizePostFx, disposePostFx } from './postfx';
 import type { MatchState, WandFrame } from '../core/types';
 import type { CoverHit, NearMiss, SpellHit } from '../match/events';
 
@@ -91,7 +92,17 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   initWebcamPip(overlay.parentElement!);
 
   renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  /*
+   * 後製把每個 pixel 的成本乘上好幾倍，所以 DPR 直接決定幀率 —— 成本是像素數的平方。
+   * 實測（M3、1280×800 視窗、GPU timer query）：
+   *   DPR 2    36.2ms   28fps
+   *   DPR 1.5  15.5ms   65fps
+   *   DPR 1     9.2ms  109fps
+   * 1.5 是甜蜜點：幀率回得來，畫面只是略軟。retina 上 1.5 仍然比 1 明顯清楚。
+   * 嫌糊就把這個數字調回 2，但要有心理準備幀率會掉到 30 以下。
+   */
+  const MAX_PIXEL_RATIO = 1.5;
+  renderer.setPixelRatio(Math.min(devicePixelRatio, MAX_PIXEL_RATIO));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = romanScene ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
@@ -106,6 +117,8 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   if (!romanScene) buildScenery(scene); // 舊月光場景保留：加 ?scene=moon 即可切回
   actors = new Actors(scene);
   runeEffects = new RuneEffects();
+  // 後製要在 scene 與 camera 都備妥之後才接。PLAN.md §4.4
+  initPostFx(renderer, scene, fps.cam);
 
   addEventListener('resize', onResize);
   offs.push(on(EV.SPELL_HIT, (raw) => {
@@ -128,6 +141,7 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
 
 function onResize(): void {
   renderer?.setSize(innerWidth, innerHeight, false);
+  if (renderer) resizePostFx(renderer);
   fps.resize(innerWidth / innerHeight);
   buildHitVignette();
 }
@@ -149,7 +163,8 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
     (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
     updateScenery(clock, dt);
   }
-  renderer.render(scene, fps.cam);
+  // composer 沒接起來就退回直接渲染 —— 後製壞掉不該讓遊戲整個黑掉
+  if (!renderPostFx()) renderer.render(scene, fps.cam);
 
   ctx.clearRect(0, 0, innerWidth, innerHeight);
   drawHitFlash(dt);
@@ -267,6 +282,7 @@ export function disposeView(): void {
   if (romanScene) { disposeRomanArena(); disposeCrowd(); }
   else disposeScenery();
   disposeWebcamPip();
+  disposePostFx();
   disposeScene();
   renderer?.dispose();
   renderer = null;

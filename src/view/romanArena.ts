@@ -11,6 +11,7 @@ interface Brazier {
   light: THREE.PointLight | null;
   flame: THREE.Mesh;
   core: THREE.Mesh;
+  halo: THREE.Sprite;
   pool: THREE.Mesh;
   phase: number;
 }
@@ -88,7 +89,7 @@ function disposeObject(object: THREE.Object3D): void {
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
   object.traverse((node) => {
-    if (!(node instanceof THREE.Mesh || node instanceof THREE.Points)) return;
+    if (!(node instanceof THREE.Mesh || node instanceof THREE.Points || node instanceof THREE.Sprite)) return;
     geometries.add(node.geometry);
     const list = Array.isArray(node.material) ? node.material : [node.material];
     for (const material of list) {
@@ -189,7 +190,14 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
     root.add(edge);
   }
 
-  const hemisphere = new THREE.HemisphereLight(tok('--struct-lit'), tok('--void'), 1.02);
+  /*
+   * 主光與環境光的比例 = 這個場景「有沒有立體感」的全部。
+   * 之前 hemisphere 1.02 + fill 0.5 = 1.52，對上 key 1.35 —— 環境光比主光還強，
+   * 每個面不管朝哪邊收到的光都差不多，所以石材、柱子、階梯全部糊成同一個灰。
+   * 壓到 0.30 之後 key:fill ≈ 2.7:1，夜戲該有的形狀就回來了。
+   * ⚠️ 這個數字動一格，整場的觀感就會變。要改先看 §4.4。
+   */
+  const hemisphere = new THREE.HemisphereLight(tok('--struct-lit'), tok('--void'), 0.30);
   root.add(hemisphere);
   // 主光是月光：冷、方向明確，但要讀得出石材。太低整場會糊成一團黑。
   const sun = new THREE.DirectionalLight(tok('--spell-core'), 1.35);
@@ -203,69 +211,97 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
   sun.shadow.camera.near = 1;
   sun.shadow.camera.far = 55;
   root.add(sun);
-  const fill = new THREE.DirectionalLight(tok('--struct'), 0.5);
+  // 補光只負責讓暗面「讀得出輪廓」，不負責照亮。跟著 hemisphere 一起壓。
+  const fill = new THREE.DirectionalLight(tok('--struct'), 0.22);
   fill.position.set(8, 8, -8);
   root.add(fill);
 
-  // 火焰用 MeshBasicMaterial 自己發亮，不靠光源 —— 加光源是逐片段成本，加形狀不是。
-  const flameGeo = new THREE.ConeGeometry(0.17, 0.92, 8);
-  const coreGeo = new THREE.ConeGeometry(0.085, 0.5, 6);
-  const haloGeo = new THREE.SphereGeometry(0.52, 12, 10);
-  const poolGeo = new THREE.CircleGeometry(2.3, 24);
-  const bowlGeo = new THREE.CylinderGeometry(0.34, 0.2, 0.2, 10);
-  const stemGeo = new THREE.CylinderGeometry(0.07, 0.1, 1.15, 8);
-  // 加色混合 + 不寫深度：實心錐體會讀成交通錐，會發光的才讀成火
+  // 火焰改成不對稱淚滴輪廓。ConeGeometry 無論怎麼打光都會讀成交通錐；
+  // ShapeGeometry 的外焰、內焰與柔光片疊起來才會像一個小型發光源。
+  const flameShape = new THREE.Shape();
+  flameShape.moveTo(0, 0);
+  flameShape.bezierCurveTo(-0.18, 0.08, -0.2, 0.28, -0.07, 0.39);
+  flameShape.bezierCurveTo(-0.13, 0.48, -0.1, 0.59, -0.055, 0.69);
+  flameShape.bezierCurveTo(0.035, 0.56, 0.21, 0.4, 0.15, 0.2);
+  flameShape.bezierCurveTo(0.12, 0.08, 0.04, 0.02, 0, 0);
+  const flameGeo = new THREE.ShapeGeometry(flameShape, 5);
+
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = glowCanvas.height = 64;
+  const glowContext = glowCanvas.getContext('2d')!;
+  const glowColor = tok('--me');
+  const glowR = Math.round(glowColor.r * 255);
+  const glowG = Math.round(glowColor.g * 255);
+  const glowB = Math.round(glowColor.b * 255);
+  const glowGradient = glowContext.createRadialGradient(32, 32, 0, 32, 32, 32);
+  glowGradient.addColorStop(0, `rgb(${glowR} ${glowG} ${glowB} / 0.72)`);
+  glowGradient.addColorStop(0.28, `rgb(${glowR} ${glowG} ${glowB} / 0.26)`);
+  glowGradient.addColorStop(1, `rgb(${glowR} ${glowG} ${glowB} / 0)`);
+  glowContext.fillStyle = glowGradient;
+  glowContext.fillRect(0, 0, 64, 64);
+  const glowMap = new THREE.CanvasTexture(glowCanvas);
+  glowMap.colorSpace = THREE.SRGBColorSpace;
+
+  const poolGeo = new THREE.CircleGeometry(1.65, 24);
+  const bowlGeo = new THREE.CylinderGeometry(0.3, 0.18, 0.14, 10);
+  const stemGeo = new THREE.CylinderGeometry(0.055, 0.075, 0.72, 8);
   const flameMat = new THREE.MeshBasicMaterial({
-    color: tok('--me'), transparent: true, opacity: 0.85,
+    color: tok('--me'), transparent: true, opacity: 0.9,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+    side: THREE.DoubleSide, toneMapped: false,
   });
   const coreMat = new THREE.MeshBasicMaterial({
-    color: tok('--me-hot'), transparent: true, opacity: 0.95,
+    color: mix('--me', '--me-hot', 0.42), transparent: true, opacity: 0.56,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+    side: THREE.DoubleSide, toneMapped: false,
   });
-  const haloMat = new THREE.MeshBasicMaterial({
-    color: tok('--me'), transparent: true, opacity: 0.11,
-    blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.BackSide,
+  const haloMat = new THREE.SpriteMaterial({
+    map: glowMap, color: tok('--me'), transparent: true, opacity: 0.14,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false,
   });
   const poolMat = new THREE.MeshBasicMaterial({
-    color: tok('--me'), transparent: true, opacity: 0.16,
+    color: tok('--me'), transparent: true, opacity: 0.11,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   });
   const ironMat = new THREE.MeshStandardMaterial({ color: tok('--ash'), roughness: 0.5, metalness: 0.55 });
 
   flameLights = [];
   braziers = BRAZIER_SPOTS.map((spot, index) => {
+    // The Blender plinth has a deep rim; pull the runtime flame slightly forward
+    // so the lip does not hide everything except its tip.
+    const fireZ = spot.z + 0.42;
     const stem = new THREE.Mesh(stemGeo, ironMat);
-    stem.position.set(spot.x, -0.08, spot.z);
+    stem.position.set(spot.x, 0.3, fireZ);
     root!.add(stem);
     const bowl = new THREE.Mesh(bowlGeo, ironMat);
-    bowl.position.set(spot.x, 0.58, spot.z);
+    bowl.position.set(spot.x, 0.68, fireZ);
     root!.add(bowl);
 
     const flame = new THREE.Mesh(flameGeo, flameMat);
-    flame.position.set(spot.x, 1.02, spot.z);
+    flame.position.set(spot.x, 0.72, fireZ + 0.018);
     root!.add(flame);
-    const core = new THREE.Mesh(coreGeo, coreMat);
-    core.position.set(spot.x, 0.92, spot.z);
+    const core = new THREE.Mesh(flameGeo, coreMat);
+    core.position.set(spot.x, 0.73, fireZ + 0.036);
     root!.add(core);
-    const halo = new THREE.Mesh(haloGeo, haloMat);
-    halo.position.set(spot.x, 1.0, spot.z);
+    const halo = new THREE.Sprite(haloMat);
+    halo.position.set(spot.x, 1.03, fireZ + 0.055);
+    halo.scale.setScalar(1.08);
     root!.add(halo);
 
     // 地面光池：假的、加色混合、零光照成本，但它才是「這裡有火」的主要訊號
     const pool = new THREE.Mesh(poolGeo, poolMat);
     pool.rotation.x = -Math.PI / 2;
-    pool.position.set(spot.x, -0.62, spot.z);
+    pool.position.set(spot.x, -0.62, fireZ);
     root!.add(pool);
 
     let light: THREE.PointLight | null = null;
     if (spot.lit) {
-      light = new THREE.PointLight(tok('--me'), 3.1, 9, 2);
-      light.position.set(spot.x, 1.1, spot.z);
+      light = new THREE.PointLight(tok('--me'), 2.35, 7, 2);
+      light.position.set(spot.x, 1.02, fireZ);
       root!.add(light);
       flameLights.push(light);
     }
-    return { light, flame, core, pool, phase: index * 1.37 };
+    return { light, flame, core, halo, pool, phase: index * 1.37 };
   });
 
   /*
@@ -273,20 +309,27 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
    * 而不是一個空的場景。用的就是首頁那張 key art，兩邊視覺因此對得上。
    *
    * 位置是算過的：對手在 z=-7.5、頭頂約 y=2.6；海報下緣 y=3.75，中間空一整個身高。
-   * 材質用 MeshBasicMaterial 不吃光照，但**壓到 62%** —— 對手是深藍剪影，
-   * 背後放一張全亮的畫會把他吃掉。海報是背景，不是主角。
+   * 材質用 MeshBasicMaterial 不吃光照，所以要手動壓。
+   * 原本壓到 62% 是對著舊的環境光（hemisphere 1.02 + fill 0.5）調的；
+   * 環境光壓到 0.30 / 0.22 之後場景整體只剩約 65% 的光，海報若不跟著降
+   * 就會反過來變成全場最亮的東西 —— 所以 0.62 × 0.65 ≈ 0.40。
+   * 另外拿掉 toneMapped: false：接上 EffectComposer 之後 OutputPass 會統一做
+   * tone mapping，個別材質的 toneMapped 旗標形同虛設，留著只會誤導下一個人。
+   * 對手是深藍剪影，背後放一張全亮的畫會把他吃掉。海報是背景，不是主角。
    */
   // 尺寸是解出來的，不是試出來的：
   //   對手頭頂 (y=2.6, z=-7.5) 的畫面比例 = (2.6-1.6)/7.5 = 0.133
   //   FOV 55° 的可視上緣比例 = tan(27.5°) = 0.521
   //   海報連吊桿必須整個落在 0.157 ~ 0.490 之間 —— 高過人頭，又不被畫面切掉
   const POSTER_W = 8.37, POSTER_H = 4.7, POSTER_Y = 6.52, POSTER_Z = -15.2;
+  // 灰階乘數，不是顏色 —— 這是曝光，所以不走 tokens.css
+  const POSTER_DIM = new THREE.Color().setScalar(0.40);
   new THREE.TextureLoader().load('/cover.jpg', (tex) => {
     if (!root || generation !== loadGeneration) { tex.dispose(); return; }
     tex.colorSpace = THREE.SRGBColorSpace;
     const poster = new THREE.Mesh(
       new THREE.PlaneGeometry(POSTER_W, POSTER_H),
-      new THREE.MeshBasicMaterial({ map: tex, color: 0x9e9e9e, fog: false, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ map: tex, color: POSTER_DIM, fog: false }),
     );
     poster.name = 'arena-poster';
     poster.position.set(0, POSTER_Y, POSTER_Z);
@@ -301,7 +344,10 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
     root.add(trim);
 
     const barGeo = new THREE.CylinderGeometry(0.07, 0.07, POSTER_W + 1.1, 8);
-    const barMat = new THREE.MeshBasicMaterial({ color: tok('--me'), fog: false });
+    // 吊桿是金屬，不是光源。接上 bloom 之後純 --me 會直接爆掉，
+    // 變成全場最亮的東西 —— 剛好跟「海報不該搶畫面」是同一個問題。
+    // 往 --ash 拉成暗銅色，壓在 bloom 門檻之下。
+    const barMat = new THREE.MeshBasicMaterial({ color: mix('--ash', '--me', 0.38), fog: false });
     for (const y of [POSTER_Y + POSTER_H / 2 + 0.14, POSTER_Y - POSTER_H / 2 - 0.14]) {
       const bar = new THREE.Mesh(barGeo, barMat);
       bar.rotation.z = Math.PI / 2;
@@ -324,6 +370,13 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
       if (!(node instanceof THREE.Mesh)) return;
       node.castShadow = true;
       node.receiveShadow = true;
+      // Blender's arena is exported as one multi-material mesh. Its built-in flame
+      // primitive is the large white triangle seen in the foreground, so hide only
+      // that material group and let the layered runtime flame above replace it.
+      const nodeMaterials = Array.isArray(node.material) ? node.material : [node.material];
+      for (const material of nodeMaterials) {
+        if (material.name === 'Brazier Flame') material.visible = false;
+      }
     });
     root.add(gltf.scene);
   });
@@ -342,10 +395,14 @@ export function updateRomanArena(t: number): void {
   for (const b of braziers) {
     // 兩個不同頻率相加，看起來才不規則；純 sin 會像在呼吸不像在燒
     const flicker = Math.sin(t * 9.5 + b.phase) * 0.5 + Math.sin(t * 21.3 + b.phase * 2.1) * 0.5;
-    b.flame.scale.set(1 + flicker * 0.11, 1 + flicker * 0.19, 1 + flicker * 0.11);
-    b.core.scale.setScalar(1 + flicker * 0.16);
-    (b.pool.material as THREE.MeshBasicMaterial).opacity = 0.16 + flicker * 0.035;
-    if (b.light) b.light.intensity = 3.0 + flicker * 0.55;
+    b.flame.scale.set(0.96 + flicker * 0.045, 0.98 + flicker * 0.08, 1);
+    b.flame.rotation.z = Math.sin(b.phase) * 0.07 + flicker * 0.018;
+    b.core.scale.set(0.27 + flicker * 0.018, 0.41 + flicker * 0.035, 1);
+    b.core.rotation.z = b.flame.rotation.z * 0.55;
+    b.halo.scale.setScalar(1.08 + flicker * 0.04);
+    (b.halo.material as THREE.SpriteMaterial).opacity = 0.16 + flicker * 0.018;
+    (b.pool.material as THREE.MeshBasicMaterial).opacity = 0.11 + flicker * 0.022;
+    if (b.light) b.light.intensity = 2.3 + flicker * 0.36;
   }
 }
 

@@ -30,7 +30,9 @@ const scales = new Float32Array(MAX_CROWD);
 const phases = new Float32Array(MAX_CROWD);
 const swayRates = new Float32Array(MAX_CROWD);
 const baseTurns = new Float32Array(MAX_CROWD);
+const tints = new Float32Array(MAX_CROWD);
 const dummy = new THREE.Object3D();
+const dummyColor = new THREE.Color();
 const crowdBaseColor = new THREE.Color();
 const crowdHitColor = new THREE.Color();
 
@@ -51,7 +53,9 @@ export function buildCrowd(scene: THREE.Scene): void {
   const voidColor = tok('--void');
   const structColor = tok('--struct');
   const ashColor = tok('--ash');
-  crowdBaseColor.copy(voidColor).lerp(structColor, 0.27).lerp(ashColor, 0.03);
+  // 0.27 → 0.20：建築用的是 --struct / --struct-lit，觀眾必須明確落在它們之下，
+  // 否則看台會跟牆面黏成同一片。逐一上色的明度雜訊圍繞這個值散開。
+  crowdBaseColor.copy(voidColor).lerp(structColor, 0.20).lerp(ashColor, 0.03);
   crowdHitColor.copy(crowdBaseColor).lerp(ashColor, 0.08);
 
   // A single low-poly lathed profile reads as head + neck + shoulders from a distance.
@@ -85,6 +89,9 @@ export function buildCrowd(scene: THREE.Scene): void {
     phases[i] = hash(seed + 2) * Math.PI * 2;
     swayRates[i] = 0.42 + hash(seed + 3) * 0.24;
     baseTurns[i] = (hash(seed + 4) - 0.5) * 0.28;
+    // 每個人自己的明度。全部同一個值 = 216 張一模一樣的貼紙；
+    // 散開之後才會讀成「一群人」，因為人群的資訊是它的雜訊，不是它的形狀。
+    tints[i] = 0.58 + hash(seed + 7) * 0.54;
   };
 
   // Side banks are deliberately sparse and start farther from camera, so they frame
@@ -127,6 +134,22 @@ export function buildCrowd(scene: THREE.Scene): void {
   crowd.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   crowd.castShadow = false;
   crowd.receiveShadow = false;
+
+  /*
+   * 逐一上色。instanceColor 是乘上材質色，所以 updateCrowd 的受擊反應
+   * 仍然對全場生效 —— 兩者不衝突。
+   *
+   * 深度衰減：後排比前排暗。看台是往後往上疊的，靠真實的空氣透視把層次做出來，
+   * 比多加幾何體便宜得多，而且不會多一個 draw call。
+   * 整體壓在建築之下 —— 觀眾是背景的質地，不是要被讀的東西。
+   */
+  for (let i = 0; i < crowdCount; i++) {
+    const depth = Math.min(1, Math.max(0, (positionsZ[i] + 7) / -14));
+    dummyColor.setScalar(tints[i] * (1 - depth * 0.3));
+    crowd.setColorAt(i, dummyColor);
+  }
+  if (crowd.instanceColor) crowd.instanceColor.needsUpdate = true;
+
   scene.add(crowd);
 
   updateCrowd(0, 0);
