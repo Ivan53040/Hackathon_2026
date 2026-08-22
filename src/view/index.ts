@@ -24,6 +24,8 @@ import type { CoverHit, NearMiss, SpellHit } from '../match/events';
 
 const HIT_FLASH_S = 0.3;
 const TRACER_LAYERS = [[9, 0.14], [4, 0.4], [1.5, 0.85]] as const;
+const TRACER_TAIL = 0.28;
+const PATH_ALPHA = 0.16;
 
 let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene;
@@ -40,6 +42,7 @@ const namePos = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const projNow = new Float32Array(2);
 const projTail = new Float32Array(2);
+const projTarget = new Float32Array(2);
 let hitFlash = 0;
 let hitVignette: CanvasGradient;
 let meColor = '';
@@ -167,9 +170,21 @@ function drawTracers(s: MatchState): void {
 
   ctx.lineCap = 'round';
   for (const p of s.projectiles) {
-    if (!projectPoint(p.fromX, p.toX, p.owner === 'them', p.progress, projNow)) continue;
-    if (!projectPoint(p.fromX, p.toX, p.owner === 'them', Math.max(0, p.progress - 0.14), projTail)) continue;
+    const toward = p.owner === 'them';
+    if (!projectPoint(p.fromX, p.toX, toward, p.progress, projNow)) continue;
+    if (!projectPoint(p.fromX, p.toX, toward, Math.max(0, p.progress - TRACER_TAIL), projTail)) continue;
+    if (!projectPoint(p.fromX, p.toX, toward, 1, projTarget)) continue;
     ctx.strokeStyle = p.owner === 'me' ? meColor : themHotColor;
+
+    // 鎖定後的完整剩餘路徑：固定直線，不跟目標之後的移動彎曲。
+    // 淡軌道先告訴玩家落點，再用亮光矢表示現在的彈體位置。
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = PATH_ALPHA;
+    ctx.beginPath();
+    ctx.moveTo(projNow[0], projNow[1]);
+    ctx.lineTo(projTarget[0], projTarget[1]);
+    ctx.stroke();
+
     for (const [w, a] of TRACER_LAYERS) {
       ctx.lineWidth = w;
       ctx.globalAlpha = a;

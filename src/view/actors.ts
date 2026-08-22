@@ -10,12 +10,20 @@ import { EV, on } from '../core/bus';
 import { LANE_WIDTH } from './camera';
 import { GAP } from './arena';
 import type { MatchState } from '../core/types';
-import type { CoverBuilt, CoverHit } from '../match/events';
+import type { CoverBuilt, CoverHit, SpellFired } from '../match/events';
 
 const BUILD_S = 0.2;
 const BUILD_SLOTS = 8;
 const DEBRIS_COUNT = 48;
 const DEBRIS_LIFE_S = 0.55;
+const ACTION_COLS = 8;
+const ACTION_ROWS = 4;
+const ACTION_FRAMES = ACTION_COLS * ACTION_ROWS;
+const ACTION_RELEASE_FRAME = 23;
+const ACTION_RECOVER_S = 0.5;
+const MOVE_COLS = 6;
+const MOVE_ROWS = 4;
+const MOVE_FRAMES = MOVE_COLS * MOVE_ROWS;
 
 const toWorldX = (x: number) => (x - 0.5) * LANE_WIDTH;
 
@@ -24,19 +32,33 @@ function tok(name: string): number {
   return new THREE.Color(v).getHex();
 }
 
-type Pose = 'idle' | 'charge' | 'hit';
+type Pose = 'idle' | 'charge' | 'attack' | 'build' | 'hit';
 
 export class Actors {
   private opponent!: THREE.Group;
   private crystal!: THREE.Mesh;
   private sprite: THREE.Mesh | null = null;   // 有素材就用它，沒有就退回幾何造型
   private poses: Partial<Record<Pose, THREE.Texture>> = {};
+  private actionTexture: THREE.Texture | null = null;
+  private actionFrame = -1;
+  private moveTexture: THREE.Texture | null = null;
+  private moveFrame = -1;
+  private wasOpponentCasting = false;
+  private recovering = false;
+  private recoverAge = 0;
   private pose: Pose = 'idle';
   private hitUntil = 0;
+  private attackUntil = 0;
+  private buildUntil = 0;
+  private previousOpponentX = Number.NaN;
+  private moveBlend = 0;
+  private moveDirection = 1;
+  private walkTime = 0;
   private t = 0;
   private sigil!: THREE.Mesh;
   private coverPool: THREE.Mesh[] = [];
   private projPool: THREE.Sprite[] = [];
+  private projectileTexture: THREE.CanvasTexture | null = null;
   private debrisPool: THREE.Mesh[] = [];
   private readonly debrisVx = new Float32Array(DEBRIS_COUNT);
   private readonly debrisVy = new Float32Array(DEBRIS_COUNT);
@@ -64,6 +86,9 @@ export class Actors {
     this.offs = [
       on(EV.COVER_BUILT, (raw) => this.onCoverBuilt(raw as CoverBuilt)),
       on(EV.COVER_HIT, (raw) => this.onCoverHit(raw as CoverHit)),
+      on(EV.SPELL_FIRED, (raw) => {
+        if ((raw as SpellFired).owner === 'them') this.attackUntil = this.t + 0.35;
+      }),
     ];
   }
 
@@ -134,8 +159,8 @@ export class Actors {
    * 對手素材。第一人稱下你永遠只從正面看對手 ——
    * 所以 billboard sprite 比 3D 網格更好：更清晰、更小、而且就是概念圖本人。
    *
-   * 三張靜態姿勢（idle / charge / hit），動態由程式驅動（浮動、染色、傾斜）。
-   * 只有 idle 是必要的；另外兩張載不到就用 idle 頂替。
+   * Higgsfield 動作 atlas 會把起手、釋放與收招連成一段；idle / charge / hit
+   * 靜態圖是載入失敗時的保底。只有 idle 是必要的。
    * 全部載不到就退回幾何造型 —— 遊戲照樣能跑。
    */
   private tryLoadSprite(): void {
@@ -156,7 +181,42 @@ export class Actors {
 
     load('idle', 'wizard.png', true);
     load('charge', 'wizard_charge.png', false);
+    load('attack', 'wizard_attack.png', false);
+    load('build', 'wizard_build.png', false);
     load('hit', 'wizard_hit.png', false);
+    loader.load(
+      '/anim/wizard_action_atlas.png',
+      (tex) => {
+        if (this.disposed) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        // Atlas tile 沒有 padding；停用 mipmap 避免遠距離時混到隔壁影格。
+        tex.generateMipmaps = false;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.repeat.set(1 / ACTION_COLS, 1 / ACTION_ROWS);
+        this.actionTexture = tex;
+      },
+      undefined,
+      () => { /* 靜態姿勢仍可完整遊玩 */ },
+    );
+    loader.load(
+      '/anim/wizard_move_atlas.png',
+      (tex) => {
+        if (this.disposed) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        tex.generateMipmaps = false;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.repeat.set(1 / MOVE_COLS, 1 / MOVE_ROWS);
+        this.moveTexture = tex;
+      },
+      undefined,
+      () => { /* 程式化步伐仍會運作 */ },
+    );
   }
 
   private mountSprite(tex: THREE.Texture): void {
@@ -180,6 +240,31 @@ export class Actors {
     material.needsUpdate = true;
   }
 
+  /** Atlas 由左到右、由上到下；Three.js 的 UV 原點在左下。 */
+  private applyActionFrame(rawFrame: number): void {
+    if (!this.sprite || !this.actionTexture) return;
+    const frame = Math.min(ACTION_FRAMES - 1, Math.max(0, rawFrame | 0));
+    if (frame === this.actionFrame && (this.sprite.material as THREE.MeshBasicMaterial).map === this.actionTexture) return;
+    this.actionFrame = frame;
+    this.actionTexture.offset.set(
+      (frame % ACTION_COLS) / ACTION_COLS,
+      1 - (Math.floor(frame / ACTION_COLS) + 1) / ACTION_ROWS,
+    );
+    this.applyPoseTexture(this.actionTexture);
+  }
+
+  private applyMoveFrame(rawFrame: number): void {
+    if (!this.sprite || !this.moveTexture) return;
+    const frame = ((rawFrame | 0) % MOVE_FRAMES + MOVE_FRAMES) % MOVE_FRAMES;
+    if (frame === this.moveFrame && (this.sprite.material as THREE.MeshBasicMaterial).map === this.moveTexture) return;
+    this.moveFrame = frame;
+    this.moveTexture.offset.set(
+      (frame % MOVE_COLS) / MOVE_COLS,
+      1 - (Math.floor(frame / MOVE_COLS) + 1) / MOVE_ROWS,
+    );
+    this.applyPoseTexture(this.moveTexture);
+  }
+
   private buildPools(): void {
     // 每幀熱路徑不准配置物件 —— 全部先開好，用 visible 開關
     for (let i = 0; i < 8; i++) {
@@ -191,9 +276,29 @@ export class Actors {
       this.scene.add(m);
       this.coverPool.push(m);
     }
+    const core = document.createElement('canvas');
+    core.width = 64;
+    core.height = 64;
+    const coreCtx = core.getContext('2d')!;
+    const base = new THREE.Color(this.spellCoreColor);
+    const coreRgb = `${Math.round(base.r * 255)} ${Math.round(base.g * 255)} ${Math.round(base.b * 255)}`;
+    const glow = coreCtx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    glow.addColorStop(0, `rgb(${coreRgb} / 1)`);
+    glow.addColorStop(0.24, `rgb(${coreRgb} / 0.95)`);
+    glow.addColorStop(0.58, `rgb(${coreRgb} / 0.38)`);
+    glow.addColorStop(1, `rgb(${coreRgb} / 0)`);
+    coreCtx.fillStyle = glow;
+    coreCtx.fillRect(0, 0, 64, 64);
+    this.projectileTexture = new THREE.CanvasTexture(core);
+
     for (let i = 0; i < 16; i++) {
       const s = new THREE.Sprite(
-        new THREE.SpriteMaterial({ color: this.spellCoreColor, transparent: true, depthWrite: false }),
+        new THREE.SpriteMaterial({
+          map: this.projectileTexture,
+          color: this.spellCoreColor,
+          transparent: true,
+          depthWrite: false,
+        }),
       );
       s.visible = false;
       this.scene.add(s);
@@ -212,6 +317,7 @@ export class Actors {
   }
 
   private onCoverBuilt(event: CoverBuilt): void {
+    if (event.side === 'them') this.buildUntil = this.t + 0.35;
     let slot = 0;
     for (let i = 0; i < BUILD_SLOTS; i++) {
       if (this.buildIds[i] === event.id || this.buildAge[i] >= BUILD_S) { slot = i; break; }
@@ -259,32 +365,77 @@ export class Actors {
     // ── 對手 ──
     this.t += dt;
     const wx = toWorldX(s.them.x);
-    const bob = Math.sin(this.t * 1.6) * 0.035;   // idle 呼吸，靜止的角色看起來像當機
+    const dx = Number.isFinite(this.previousOpponentX) ? s.them.x - this.previousOpponentX : 0;
+    this.previousOpponentX = s.them.x;
+    const moveSpeed = dt > 1e-4 ? dx / dt : 0;
+    if (Math.abs(moveSpeed) > 0.015) this.moveDirection = moveSpeed < 0 ? -1 : 1;
+    const moveTarget = Math.min(1, Math.abs(moveSpeed) / CONFIG.MOVE_SPEED);
+    this.moveBlend += (moveTarget - this.moveBlend) * Math.min(1, dt * 12);
+    // 24 格素材以約 6 fps 播放；原本最高接近 30 fps，看起來像卡格抖動。
+    if (this.moveBlend > 0.01) this.walkTime += dt * 1.65;
+    const idleBob = Math.sin(this.t * 1.6) * 0.035;
+    const stepBob = Math.abs(Math.sin(this.walkTime)) * 0.055;
+    const bob = idleBob * (1 - this.moveBlend) + stepBob * this.moveBlend;
 
     if (this.sprite) {
       const sm = this.sprite.material as THREE.MeshBasicMaterial;
 
-      // 姿勢優先序：受擊 > 起手 > 待機。受擊會壓住起手，因為被打斷比較重要
-      const want: Pose = this.t < this.hitUntil ? 'hit' : s.them.casting ? 'charge' : 'idle';
-      if (want !== this.pose) {
-        const tex = this.poses[want] ?? this.poses.idle;
+      if (s.them.casting && !this.wasOpponentCasting) {
+        this.recovering = false;
+        this.recoverAge = 0;
+      } else if (!s.them.casting && this.wasOpponentCasting) {
+        // 施法結束不是立刻跳回 idle；接著播 follow-through + recovery。
+        this.recovering = true;
+        this.recoverAge = 0;
+      }
+      this.wasOpponentCasting = s.them.casting;
+
+      // 動作優先序：受擊 > 連續施法 atlas > 靜態保底 > 待機。
+      const isHit = this.t < this.hitUntil;
+      if (isHit) {
+        const tex = this.poses.hit ?? this.poses.idle;
         if (tex) this.applyPoseTexture(tex);
+        this.pose = 'hit';
+      } else if (this.actionTexture && s.them.casting) {
+        this.applyActionFrame(Math.round(s.them.castProgress * ACTION_RELEASE_FRAME));
+        this.pose = 'charge';
+      } else if (this.actionTexture && this.recovering) {
+        this.recoverAge += dt;
+        const p = Math.min(1, this.recoverAge / ACTION_RECOVER_S);
+        this.applyActionFrame(ACTION_RELEASE_FRAME + Math.round(p * (ACTION_FRAMES - 1 - ACTION_RELEASE_FRAME)));
+        if (p >= 1) this.recovering = false;
+        this.pose = 'charge';
+      } else if (this.moveTexture && this.moveBlend > 0.08) {
+        // walkTime 是連續相位；左右方向只鏡像，不重啟循環，因此轉向不會卡格。
+        this.applyMoveFrame(Math.floor((this.walkTime / (Math.PI * 2)) * MOVE_FRAMES));
+        this.pose = 'idle';
+      } else {
+        const want: Pose = this.t < this.buildUntil ? 'build'
+          : this.t < this.attackUntil ? 'attack'
+            : s.them.casting ? 'charge' : 'idle';
+        if (want !== this.pose || sm.map === this.actionTexture || sm.map === this.moveTexture) {
+          const tex = this.poses[want] ?? this.poses.idle;
+          if (tex) this.applyPoseTexture(tex);
+        }
         this.pose = want;
       }
 
       const h = (this.sprite.geometry as THREE.PlaneGeometry).parameters.height;
       this.sprite.position.set(wx, h / 2 - 0.05 + bob, -GAP + 1);
+      // 所有姿勢共用相同世界尺寸；左右移動只鏡像，不能改變角色大小。
+      this.sprite.scale.set(this.moveDirection, 1, 1);
       this.sprite.visible = s.them.hp > 0;
 
       // 沒有 charge 素材時，用染色代替 —— 起手的預警不能沒有
       sm.color.setHex(this.spellCoreColor);
-      if (s.them.casting && !this.poses.charge) {
+      if (s.them.casting && !this.actionTexture && !this.poses.charge) {
         sm.color.lerp(this.themHot, 0.25 + s.them.castProgress * 0.4);
       }
       // 沒有 hit 素材時，用向後傾代替
-      this.sprite.rotation.z = this.t < this.hitUntil && !this.poses.hit
-        ? -0.14 * ((this.hitUntil - this.t) / 0.3)
-        : 0;
+      const hitTilt = isHit && !this.poses.hit ? -0.14 * ((this.hitUntil - this.t) / 0.3) : 0;
+      const actionWeight = s.them.casting || this.recovering ? 0.2 : 1;
+      const moveTilt = -this.moveDirection * this.moveBlend * 0.055 * actionWeight;
+      this.sprite.rotation.z = hitTilt + moveTilt;
 
       this.opponent.visible = false;
     } else {
@@ -292,7 +443,7 @@ export class Actors {
       this.opponent.position.x = wx;
       this.opponent.position.y = bob;
       this.opponent.position.z = -GAP + 1 - hit * 0.18;
-      this.opponent.rotation.z = -hit * 0.12;
+      this.opponent.rotation.z = -hit * 0.12 - this.moveDirection * this.moveBlend * 0.055;
       this.opponent.visible = s.them.hp > 0;
     }
     // 起手時杖頂水晶亮起（幾何造型用）
@@ -370,5 +521,11 @@ export class Actors {
     this.offs.forEach((off) => off());
     for (const tex of Object.values(this.poses)) tex?.dispose();
     this.poses = {};
+    this.actionTexture?.dispose();
+    this.actionTexture = null;
+    this.moveTexture?.dispose();
+    this.moveTexture = null;
+    this.projectileTexture?.dispose();
+    this.projectileTexture = null;
   }
 }
