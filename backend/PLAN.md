@@ -1,18 +1,20 @@
 # RUNESPIRE — 後端開發計劃 (BACKEND PLAN)
 
-> **v4 — 依簡化後的遊戲規格改寫。** 這份文件涵蓋**伺服器、網路協定、部署**。
+> **v5 — 第一人稱 + 臉部追蹤。** 這份文件涵蓋**伺服器、網路協定、部署**。
 > 瀏覽器端請看 [`../frontend/PLAN.md`](../frontend/PLAN.md)。
 > 執行用打勾清單在 [`CHECKLIST.md`](./CHECKLIST.md)。
 > 設計決策見 [`../.design/`](../.design/)。
 >
 > **擁有者：E。預估 ~350 行 + 部署，一個人 5 小時。**
 >
-> **v3 → v4 對後端的影響：協定變小了，伺服器程式碼一行都不用改。**
-> 刪掉的欄位：`floor` · `pitch` · `targetFloor` · `shieldUntil` · `fromFloor` · `toFloor`。
-> 刪掉的法術：`lightning` · `shield`。**`spell` 白名單剩兩個：`attack` / `wall`。**
+> **v4 → v5：協定又變小了，伺服器程式碼依然一行都不用改。**
+> 再刪掉：`covers[]` 整個陣列 · `mp` · `alive`（改成 `hp<=0` 推導）。
+> 法術改名：`attack`/`wall` → **`bolt` / `heavy`**。
+> 新增：`Projectile.fromX` / `toX`（發射當下鎖定目標位置，這就是「閃得掉」的實作）。
 >
 > ⚠️ **E 唯一要動的是 `protocol.ts` 的驗證白名單。**
-> 照 v3 的白名單寫下去，**會擋掉前端送的合法訊息**——這是唯一會出事的地方。
+> 照舊版寫下去，**會擋掉前端送的合法訊息**——這是唯一會出事的地方。
+> **規格已改過四次，這一條每次都要重新確認。**
 
 ---
 
@@ -28,7 +30,7 @@
 ### 伺服器**不**做什麼
 - ❌ 不做符文辨識
 - ❌ 不做遊戲模擬 / 命中判定
-- ❌ **不做遮蔽物判定、不做視線判定、不算魔量**
+- ❌ **不做命中判定、不算任何遊戲數值**
 - ❌ 不存資料庫
 - ❌ 不做帳號、登入、密碼
 - ❌ 不用 Docker、不用 Redis、不用 ORM
@@ -41,10 +43,10 @@
 ✅ 前端辨識：筆尖 → 本地 $1 (3ms) → { spell, score } 約 50 bytes → 送出
    延遲 <5ms。離線也能打 bot
 ```
-**伺服器不該知道什麼是三角形，也不該知道什麼是牆。**
+**伺服器不該知道什麼是三角形，也不該知道誰閃掉了什麼。**
 它只該知道房間裡有兩個人，以及怎麼把訊息從 A 傳到 B。
 
-> ⚠️ v3 加了遮蔽物與魔量之後，會有人（包括 AI agent）想「在伺服器驗一下魔量夠不夠」。
+> ⚠️ 規格改了四次，每次都會有人（包括 AI agent）想「在伺服器驗一下」。
 > **不准。** 沒有排行榜就沒有作弊誘因，對手是坐在你旁邊的人。
 > 任何伺服器端規則驗證都會讓「斷線降級 bot」（§6.2/§6.3）變得不可能。
 
@@ -166,25 +168,23 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 { "type":"error",      "code":"ROOM_FULL", "message":"..." }
 
 // ── client → server，15Hz（伺服器原樣轉發給另一人）─
-// ★ v4 刪掉 floor / pitch / targetFloor —— 單層，x 是唯一的位置維度
+// x 由頭部位移推導；沒有走位鍵
 { "type":"input", "seq":812, "x":0.42,
   "casting":true, "castProgress":0.6 }
 
 // ── client → server，事件觸發 ──────────────────
-// ★ v4：spell 只有兩個，沒有 targetFloor
-{ "type":"cast", "spell":"attack"|"wall", "score":0.91, "durationMs":1180 }
+// ★ v5：spell 改名 bolt / heavy
+{ "type":"cast", "spell":"bolt"|"heavy", "score":0.91, "durationMs":1180 }
 { "type":"rematch" }
 
 // ── host → server → guest，15Hz ────────────────
-// host/guest 是陣列（為 2v2 留門，1v1 時長度 1）
-// ★ v4：wizard 只剩 7 個欄位；cover 沒有 floor；projectile 帶 fromX
+// ★ v5：covers 與 mp 整個移除；duelist 只剩 5 個欄位
+// ★ projectile 帶 fromX / toX —— toX 是發射當下鎖定的目標位置
 { "type":"state", "tick":812, "ackSeq":810,
-  "host":  [ { "id":"h0","x":0.30,"hp":10,"mp":64,"alive":true,
-               "casting":false,"castProgress":0 } ],
-  "guest": [ { "id":"g0","x":0.70,"hp":7,"mp":30,"alive":true,
-               "casting":true,"castProgress":0.4 } ],
-  "covers":[ { "id":7,"owner":"guest","x":0.62,"bornAt":1724200012345 } ],
-  "projectiles":[ { "id":41,"owner":"host","progress":0.4,"fromX":0.30 } ],
+  "host":  { "id":"h0","x":0.30,"hp":10,"casting":false,"castProgress":0 },
+  "guest": { "id":"g0","x":0.70,"hp":7, "casting":true, "castProgress":0.4 },
+  "projectiles":[ { "id":41,"owner":"host","spell":"bolt",
+                    "fromX":0.30,"toX":0.68,"progress":0.4 } ],
   "timeLeft":47, "winner":null }
 
 // ── 雙向 ───────────────────────────────────────
@@ -198,13 +198,10 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 一旦用它當 wire 格式，guest 端的血量會互換、投射物方向會反、左右場地會顛倒，
 而且症狀長得像「渲染 bug」，你會在 D 的資料夾裡 debug 兩小時，錯的地方在 `net/`。
 
-**`covers` 也帶 `owner`，讓這件事嚴重十倍。**
-搞錯的話 guest 端會變成「敵人的牆保護我、我的牆擋住敵人」，**規則整個反過來**，
-而且看起來完全不像網路 bug。
-
-**★ v4 又加了一層：C3「被牆擋住就完全看不到對手」。**
-`owner` 反了的話，guest 會在**不該隱形的時候隱形**——
-畫面上對手憑空消失，看起來像掉線，實際上是 `toLocalView()` 寫錯。
+**★ v5 讓這件事在第一人稱下更難 debug。**
+`projectiles[].owner` 反了的話，guest 端會**看到自己發射的火球朝自己飛過來**。
+在第三人稱那是一眼看得出的 bug，在第一人稱它看起來只是「火球方向怪怪的」，
+你會先去懷疑 `view/camera.ts`，錯的地方在 `net/`。
 
 **規則：wire 上永遠是絕對角色 `host`/`guest`。前端在 `net/` 邊界做一次視角轉換
 （`toLocalView()`，見 `../frontend/PLAN.md` §3），之後全遊戲只講 me/them。**
@@ -212,17 +209,19 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 ### 5.4 同步模型：Host-authoritative, 15Hz
 - **先進房的是 host**，跑權威模擬並廣播完整狀態
 - guest 送 `input` + `cast`，本地做插值與立即的 VFX 預測（拖尾、法陣），
-  但 **HP / MP / 命中 / 遮蔽物的生滅一律以 host 的 `state` 為準**
-- **命中判定、遮蔽物判定、視線判定 100% 由 host 決定**
-- **★ v4：C3 的可見性（誰看得到誰）由每個 client 自己依收到的 `covers` 算，不進 wire 格式。**
-  它是純顯示狀態，不影響規則，而且兩邊算出來的結果本來就不同
+  但 **HP 與命中一律以 host 的 `state` 為準**
+- **命中判定 100% 由 host 決定**
+- **★ v5：命中判定看的是 `toX`（發射當下鎖定的位置），不是對手現在的位置。**
+  所以 host 算命中時要用 `projectile.toX` 對比 `them.x`——**這就是閃避成立的原因**
 - 不用 rollback、不用 lockstep、不用預測回滾
 
-**為什麼可以這麼粗暴：** 這個遊戲是**單層 + 慢速投射物 + 靜態遮蔽物**，100ms 延遲肉眼看不出來。
-★ v4 拿掉連續 `pitch` 之後這一點更成立了——**再也沒有任何需要逐幀平滑的連續值**，
-`x` 是唯一會連續變化的欄位，而它插值起來很便宜。
-唯一會被看出來的是「蓋牆的瞬間」——所以 **guest 端可以在本地先播蓋牆特效，但那面牆要等 host 的 `state` 才算數**。
-牆位置差一點沒人看得出來，牆存不存在不一致才會出事。
+**為什麼可以這麼粗暴：** 慢速投射物 + 單一維度位置，100ms 延遲肉眼看不出來。
+`x` 是唯一會連續變化的欄位，插值起來很便宜。
+
+> ⚠️ **v5 唯一要小心的是閃避的手感。** 玩家側身之後，如果他覺得「我明明閃掉了卻還是被打中」，
+> 那是延遲造成的。對策：**guest 端本地立刻用自己的 `x` 做命中預測並播 near-miss 特效**，
+> 但 HP 仍以 host 為準。看起來閃掉了、血照扣，比看起來沒閃掉更難接受——
+> 所以寧可讓 `HIT_WIDTH` 大方一點。
 
 ### 5.5 伺服器的轉發規則（全部邏輯就這幾行）
 ```
@@ -231,11 +230,11 @@ client 連上 /ws/FLUX?playerId=p_ab12de
    → 原樣轉發（不解析內容、不改欄位、不驗證遊戲邏輯）
    → 對方不在就丟掉，不報錯
 ```
-**伺服器不看 `spell` 是什麼，不看 `hp` 合不合理，不看 `mp` 夠不夠，不看牆蓋在哪。**
+**伺服器不看 `spell` 是什麼，不看 `hp` 合不合理，不看誰打中誰。**
 
-### 5.6 訊息大小（v4 變小了，但還是確認一次）
-`state`：2 個 wizard × 7 欄位 + 最多 4 面牆 + 投射物。
-粗估 **~350–500 bytes**（v3 是 600–900），遠低於 `maxPayload: 16KB`。**要親眼確認一次：**
+### 5.6 訊息大小（v5 又更小）
+`state`：2 個 duelist × 5 欄位 + 投射物。
+粗估 **~200–300 bytes**，遠低於 `maxPayload: 16KB`。**要親眼確認一次：**
 ```bash
 # 在 host 端 console 印一次
 console.log(JSON.stringify(state).length);
@@ -259,29 +258,23 @@ console.log(JSON.stringify(state).length);
 畫面出現「對手失去連線 — 由幻影接管」
    ↓
 RemoteOpponent 就地換成 BotOpponent（術士難度），
-繼承當前 HP / MP / 位置 `x` / ★ 場上所有遮蔽物
+繼承當前 HP / 位置 `x` / 場上所有投射物
    ↓
 比賽繼續，不中斷
 ```
-> ★ **重點：接管時不要清掉 `covers`。** 牆突然全部消失是全場最明顯的 glitch，
-> 觀眾不知道什麼是 RemoteOpponent，但一定看得到牆憑空不見。
 
 ### 6.3 🔴 host 離線時 guest 怎麼辦（**會直接卡死，必做**）
 guest 端**從來沒有跑過權威模擬**——它一直在等 `state`。host 一走，guest 的畫面會靜止不動。
 
 **必做：guest 收到 `peerLeft` 時執行「自我提升」：**
 ```
-1. 用最後一份 state 當作初始狀態（★ 含 covers、mp、每個 wizard 的 alive）
+1. 用最後一份 state 當作初始狀態（含 HP、x、場上投射物）
 2. mode: 'guest' → 'solo'，本地開始跑權威模擬
-3. them 換成 BotOpponent(warlock)，繼承 HP / MP / x
-4. ★ 立刻用最後一份 covers 重建本地的遮蔽物狀態，之後由本地權威接手生滅
+3. them 換成 BotOpponent(warlock)，繼承 HP / x
 5. 之後不再等任何網路訊息
 ```
 guest 離線時 host 只要 §6.2 就夠了。**兩條路徑都要在 M3 測到。**
 
-> ★ **最容易漏的失敗模式**：自我提升後若忘了接手 `covers`，guest 端會出現
-> 「牆看得到但打不碎 / 打不到人」——因為本地模擬裡根本沒有那些牆。
-> **M3 驗收一定要在「場上有牆」的狀態下拔線測。**
 
 ### 6.4 重連（有時間才做，優先度低於 6.3）
 `playerId` 存在 `sessionStorage`。同 `playerId` 重新連上同房間 → 沿用原 role，發 `peerJoined`。
@@ -298,25 +291,24 @@ guest 離線時 host 只要 §6.2 就夠了。**兩條路徑都要在 M3 測到�
 ```jsonc
 POST /api/telemetry
 { "events":[
-  { "t":1724200000000, "spell":"wall", "score":0.88, "ok":true,
+  { "t":1724200000000, "spell":"heavy", "score":0.88, "ok":true,
     "source":"mediapipe", "durationMs":1180, "session":"s_x9f2" },
   // ★ 魔量不足導致的失敗要分開記，不能算進辨識率
-  { "t":1724200003000, "spell":"attack", "score":0.93, "ok":false,
-    "reason":"no-mana", "source":"mediapipe", "durationMs":900, "session":"s_x9f2" }
+  { "t":1724200003000, "spell":"bolt", "score":0.41, "ok":false,
+    "reason":"low-score", "source":"mediapipe", "durationMs":900, "session":"s_x9f2" }
 ]}
 ```
-> ★ **`reason:"no-mana"` 的事件不列入辨識率分母。**
-> 那是玩家沒魔力，不是我們認不出來。混在一起會**低估自己的辨識率**，
-> 然後你在台上報一個比實際更難看的數字。
+> ★ **v5 沒有魔量了，所有失敗都是辨識失敗，全部列入分母。**
+> 反而要記 `source`——滑鼠模式的成功率會遠高於 webcam，混在一起會**高估**自己。
+> **台上報數字時要說清楚是 webcam 模式的數字。**
 
 **伺服器**：append 到 `data/telemetry.jsonl`（純檔案，不要資料庫）。
 
 ```jsonc
 GET /api/telemetry/summary
 { "total":612, "ok":541, "recognitionRate":0.883,
-  "excludedNoMana":38,
-  "bySpell":{ "attack":{"n":390,"rate":0.91},
-              "wall":{"n":222,"rate":0.86} },
+  "bySpell":{ "bolt":{"n":390,"rate":0.91},
+              "heavy":{"n":222,"rate":0.86} },
   "bySource":{ "mediapipe":0.87, "hsv":0.93, "mouse":0.98 } }
 ```
 > ⚠️ 部署平台的檔案系統多半是暫時性的（重啟就沒了）。
@@ -331,7 +323,7 @@ GET /api/telemetry/summary
 | **全域 try/catch** | `process.on('uncaughtException')` + `unhandledRejection` → log 後**不要退出** |
 | **JSON 解析** | 每個 `message` handler 包 try/catch，壞訊息丟掉，不要讓一個 client 打死伺服器 |
 | **訊息大小上限** | `ws` 的 `maxPayload: 16 * 1024`。★ v3 的 `state` 約 600–900 bytes，仍安全（§5.6） |
-| **型別驗證** | 手寫 20 行：`type` 必須在白名單、數字欄位 `Number.isFinite`、字串長度上限、**陣列長度上限**（`covers`/`projectiles` 各 ≤ 32，防止有人送十萬面牆把對方瀏覽器打死） |
+| **型別驗證** | 手寫 20 行：`type` 必須在白名單、數字欄位 `Number.isFinite`、字串長度上限、**陣列長度上限**（`projectiles` ≤ 32，防止有人送十萬顆火球把對方瀏覽器打死） |
 | **建房限流** | 同 IP 每分鐘最多 20 次建房。記憶體 Map，過期就清 |
 | **CORS** | 生產環境同源（伺服器吐前端靜態檔）→ **不需要 CORS**。dev 走 vite proxy → 也不需要 |
 | **不記 IP** | log 只記房間代碼與事件，不記 IP、不記個資 |
@@ -395,8 +387,8 @@ Plan B  一台跑 server + vite(mkcert https)，另一台連 https://<區網IP>:
         ⚠️ 第二台必須信任憑證，否則沒有 webcam。排練時就要裝好
 Plan C  直接 demo 單人打大法師 bot，觀眾不會知道差別    ← 有疑慮就走這條
 ```
-> ★ Plan C 在 v3 更可行：**大法師 bot 會蓋牆、走出牆外開火再退回**，
-> 這正好把規格的核心玩法演一遍。**排練時 Plan C 要跟 Plan A 一樣熟。**
+> ★ Plan C 在 v5 一樣可行：**大法師 bot 會提前側移閃避、抓你畫完的空檔反擊**，
+> 正好把核心玩法演一遍。**排練時 Plan C 要跟 Plan A 一樣熟。**
 
 ---
 

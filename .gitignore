@@ -27,3 +27,10 @@ data/telemetry.jsonl
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# MediaPipe 模型檔（各自下載，不進版控）
+public/mediapipe/*.wasm
+public/mediapipe/*.task
+
+# 生成的動畫素材原始影片（只進 atlas PNG）
+public/anim/**/*.mp4

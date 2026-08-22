@@ -1,0 +1,63 @@
+/**
+ * 設計 token　[擁有者：D]
+ *
+ * 全隊只能引用 token，不准在別處寫死 hex 與 px。
+ * ⚠️ 顏色是 Stage 3 三個方向的暫定值 —— Stage 4 選定方向後整組會換。
+ *    見 .design/03-directions.md
+ */
+:root {
+  /* ── 顏色（暫定：星圖 Starchart）───────────── */
+  --void:        #05070F;
+  --struct:      #4E6FA8;
+  --struct-lit:  #7FA3DC;
+  --me:          #F5C542;   /* 你：暖金 · 填實 */
+  --me-hot:      #FFF4D6;
+  --them:        #1F86AC;   /* 對手：冷青 · 空心 */
+  --ember:       #FF7A3D;
+  --ash:         #3A3D48;
+  --parchment:   #E8DCC4;
+  --dim:         #7B8296;
+
+  /* ── 字體 ───────────────────────────────── */
+  --font-display: "Cormorant Garamond", Georgia, "Songti TC", serif;
+  --font-ui:      system-ui, -apple-system, "PingFang TC", sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* ── 字級 ───────────────────────────────── */
+  --t-xs: 11px; --t-sm: 13px; --t-md: 15px;
+  --t-lg: 22px; --t-xl: 34px; --t-2xl: 56px;
+
+  /* ── 間距 ───────────────────────────────── */
+  --s1: 4px; --s2: 8px; --s3: 16px; --s4: 28px; --s5: 48px; --s6: 80px;
+
+  --radius: 2px;
+
+  /* ── 動畫（對應 frontend/PLAN.md §5）────────── */
+  --ease-out:  cubic-bezier(.22,.61,.36,1);
+  --ease-in:   cubic-bezier(.55,.06,.68,.19);
+  --ease-back: cubic-bezier(.34,1.56,.64,1);
+  --d-snap:   120ms;   /* A13 符文吸附 */
+  --d-fast:   180ms;   /* A5 閃避 */
+  --d-hit:    300ms;   /* A6 受擊 */
+  --d-fall:   800ms;   /* A7 倒下 */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--void);
+  color: var(--parchment);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  user-select: none;              /* 按住 Shift 不要選到文字 */
+  -webkit-user-select: none;
+}
+
+#app { position: relative; width: 100%; height: 100%; }
+
+:focus-visible { outline: 2px solid var(--me); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

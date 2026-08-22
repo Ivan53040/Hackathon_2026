@@ -1,9 +1,9 @@
 # 後端執行清單 (BACKEND CHECKLIST)
 
-> **v4 — 依簡化後的規格更新。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
+> **v5 — 第一人稱 + 臉部追蹤。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
 > 後端不是關鍵路徑，**但它的失敗是致命的**。早做完，早部署，然後把時間拿去幫整合。
 >
-> **★ = v4 新增/變更。**
+> **★ = v5 新增/變更。**
 > **一句話總結：伺服器邏輯幾乎不用改，改的是 `protocol.ts` 的型別、驗證的陣列長度上限、
 > 以及斷線降級時要記得接手 `covers`。**
 
@@ -12,11 +12,11 @@
 ## H+0 → H+1　契約
 
 - [ ] 跟前端一起逐行唸 `src/core/types.ts`
-- [ ] ★ 確認 v4 欄位：**`x` / `hp` / `mp` / `alive` / `casting` / `castProgress` / `covers[]`**
-- [ ] 🔴 ★ 確認 v3 欄位**已從驗證白名單刪掉**：`floor` · `pitch` · `targetFloor` · `shieldUntil` · `fromFloor` · `toFloor`
-- [ ] ★ 確認 `state.host` / `state.guest` 是**陣列**（1v1 時長度 1，為 2v2 留門）
-- [ ] 🔴 ★ 確認 `spell` 白名單只有 **`attack` / `wall`** 兩個
-      （照 v3 的四個寫下去不會 crash，但**會擋掉前端送的合法訊息**——這是規格改版最容易漏的一條）
+- [ ] ★ 確認 v5 欄位：**`x` / `hp` / `casting` / `castProgress`**，投射物帶 **`fromX` / `toX` / `spell`**
+- [ ] 🔴 ★ 確認舊欄位**已從白名單刪掉**：`floor` `pitch` `targetFloor` `shieldUntil` `fromFloor` `toFloor` `covers[]` `mp` `alive`
+- [ ] ★ 確認 `state.host` / `state.guest` 是**單一物件**（v5 拿掉陣列，只做 1v1）
+- [ ] 🔴 ★ 確認 `spell` 白名單只有 **`bolt` / `heavy`**
+      （**規格已改四次，這一條每次都要重看**。寫錯不會 crash，但會安靜地擋掉合法訊息）
 - [ ] ★ 確認舊的 `aim: 'up'|'level'|'down'` **已從協定移除**，不要留兩套
 - [ ] 🔴 確認 wire 格式用 **`host`/`guest`** 不用 `me`/`them`（[PLAN.md §5.3](./PLAN.md)）
       ★ **`covers[].owner` 也是 `host`/`guest`**，搞錯規則會整個反過來
@@ -173,11 +173,11 @@
 | B8 | 5 分鐘 loadtest 記憶體不漲、空房被 GC | ☐ |
 | B9 | `/api/telemetry/summary` 數字可貼投影片（★ 已排除 `no-mana`） | ☐ |
 | B10 | 送壞 JSON 不 crash | ☐ |
-| ★ B11 | `covers` 完整轉發，host 蓋牆 guest 0.2 秒內看到 | ☐ |
-| ★ B12 | guest 端：**自己的牆保護自己、擋自己的攻擊** | ☐ |
-| ★ B13 | 場上有牆時 host 離線 → guest 自我提升後牆還在、還能被打碎 | ☐ |
-| ★ B14 | 送 `covers` 長度 100 → 被擋掉，不 crash、對方不卡死 | ☐ |
-| ★ B15 | **C3 隱形方向正確**：guest 躲牆後，host 端看不到 guest（不是反過來） | ☐ |
+| ★ B11 | `projectiles` 完整轉發，host 開火 guest 0.2 秒內看到 | ☐ |
+| ★ B12 | guest 端：**自己發射的火球朝對手飛，不是朝自己** | ☐ |
+| ★ B13 | 場上有投射物時 host 離線 → guest 自我提升後火球還在、還會命中 | ☐ |
+| ★ B14 | 送 `projectiles` 長度 100 → 被擋掉，不 crash、對方不卡死 | ☐ |
+| ★ B15 | **閃避手感**：guest 側身後，near-miss 特效有播，且 HP 沒被扣 | ☐ |
 
 ---
 
