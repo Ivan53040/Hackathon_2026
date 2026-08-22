@@ -7,8 +7,7 @@
 import './ui/tokens.css';
 import { CONFIG } from './core/config';
 import { EV, emit, on } from './core/bus';
-import { initInput, getMoveAxis, isCasting } from './core/input';
-import { tickMock } from './core/mockMatch';
+import { initInput, isCasting } from './core/input';
 import { getFrame, setSource, currentKind } from './tracking/tracker';
 import { initRunes, disposeRunes } from './runes';
 import { initMatch, tickMatch, createBotOpponent } from './match';
@@ -20,7 +19,9 @@ import { buildResults, enterResults } from './pages/results';
 import { connect, createRemoteOpponent, disconnect, sendInput, sendCast, isHost } from './net';
 import type { MatchState, Mode } from './core/types';
 
-const USE_MOCK = new URLSearchParams(location.search).has('mock');
+// 開發捷徑：?solo=1 直接開一場真的 bot 對戰，跳過首頁。
+// （舊的 ?mock=1 是假狀態，玩家的攻擊與建造不會被模擬，已移除）
+const AUTO_SOLO = new URLSearchParams(location.search).has('solo');
 
 const app = document.getElementById('app')!;
 const canvas = document.createElement('canvas');
@@ -87,7 +88,7 @@ initInput();
 await setSource('mouse');
 initRunes();
 initView(canvas);
-if (USE_MOCK) startMatch('solo');
+if (AUTO_SOLO) startMatch('solo');
 
 // 施法事件轉送到對手
 on(EV.CAST, (p) => {
@@ -96,7 +97,6 @@ on(EV.CAST, (p) => {
   sendCast(c.spell, c.score, c.durationMs);
 });
 
-let mockX = 0.5;
 let last = performance.now();
 let netAt = 0;
 let gameFps = 60, frames = 0, fpsAt = performance.now();
@@ -109,13 +109,7 @@ function loop(now: number): void {
     const f = getFrame();
     emit(EV.WAND_FRAME, f);
 
-    let s: MatchState;
-    if (USE_MOCK) {
-      mockX = Math.min(Math.max(mockX + getMoveAxis() * CONFIG.MOVE_SPEED * dt, 0), 1);
-      s = tickMock(dt, mockX);
-    } else {
-      s = tickMatch(dt);
-    }
+    const s = tickMatch(dt);
 
     // 15Hz 送位置給對手。不節流會塞爆
     if (mode !== 'solo' && now - netAt > 1000 / CONFIG.TICK_HZ) {
@@ -139,7 +133,7 @@ function drawDebug(s: MatchState): void {
   ctx.font = '12px ui-monospace, monospace';
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim() || '#7C88AB';
   [
-    `${currentKind() ?? '-'}  ${mode}${USE_MOCK ? '  [MOCK]' : ''}  fps ${gameFps.toFixed(0)}`,
+    `${currentKind() ?? '-'}  ${mode}  fps ${gameFps.toFixed(0)}`,
     `me   x ${s.me.x.toFixed(3)}  hp ${s.me.hp}  mp ${Math.round(s.me.mp)}`,
     `them x ${s.them.x.toFixed(3)}  hp ${s.them.hp}  ${s.canSeeThemStats ? '' : '(???)'}`,
     `covers ${s.covers.length}  proj ${s.projectiles.length}  casting ${isCasting()}  casts ${casts}`,
@@ -148,5 +142,5 @@ function drawDebug(s: MatchState): void {
 }
 
 addEventListener('beforeunload', () => { disposeRunes(); disconnect(); });
-console.info('[runespire] 就緒。加 ?mock=1 直接進遊戲用假對手。');
+console.info('[runespire] 就緒。加 ?solo=1 直接開一場 bot 對戰。');
 requestAnimationFrame(loop);

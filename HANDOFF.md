@@ -34,9 +34,11 @@ npm run server     # :8787  後端，另一個終端
 npm run build      # tsc --noEmit && vite build —— 改完一定要跑這個
 ```
 
-**開發用網址：`https://localhost:5173/?mock=1`**
-`?mock=1` 會用 `src/core/mockMatch.ts` 的假對手（會走動、開火、蓋牆），
-所以畫面可以獨立開發，不用等遊戲邏輯。
+**開發用網址：`https://localhost:5173/?solo=1`**
+`?solo=1` 會跳過首頁，直接開一場對 bot 的真實對戰。
+
+> ⚠️ 舊的 `?mock=1` 已經移除。它用假狀態餵畫面，**玩家的攻擊與建造完全不會被模擬** ——
+> 看起來像遊戲壞了。`src/core/mockMatch.ts` 已刪除。
 
 ---
 
@@ -44,7 +46,7 @@ npm run build      # tsc --noEmit && vite build —— 改完一定要跑這個
 
 | 模組 | 擁有者 | 狀態 |
 |---|---|---|
-| `src/core/` | Wesley | ✅ 完成。types / bus / config / input / mockMatch |
+| `src/core/` | Wesley | ✅ 完成。types / bus / config / input |
 | `src/tracking/` | Ivan | 🟡 只有 `mouseSource`，MediaPipe 進行中 |
 | `src/runes/` | Bill | ✅ $1 辨識器完成 |
 | `src/match/` | Bill | ✅ 模擬 + 遮蔽物 + bot 完成 |
@@ -209,7 +211,7 @@ CONFIG.SNAP_MS            120
 npm run build          # 必須零 error
 ```
 
-然後開 `https://localhost:5173/?mock=1` 目視確認。
+然後開 `https://localhost:5173/?solo=1` 目視確認。
 
 **最後回報**：改了哪些檔案、跑了什麼檢查、有沒有沒解決的問題。
 **不要 commit，留給人類。**

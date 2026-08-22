@@ -107,7 +107,6 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   }));
   offs.push(on(EV.NEAR_MISS, (raw) => {
     // 只有閃掉迎面而來的攻擊才震動；我方火球打空不該像自己被打。
-    // mockMatch 的舊 payload 沒有 owner，但它只模擬迎面攻擊，因此也算 incoming。
     if ((raw as NearMiss).owner !== 'me') fps.shake(0.35);
   }));
   offs.push(on(EV.COVER_HIT, (raw) => {

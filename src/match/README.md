@@ -40,4 +40,5 @@
 - `solo` / `host` → 這裡跑權威模擬；`host` 另外以 `TICK_HZ` 廣播 `WireState`
 - `guest` → **不模擬**，直接吃 `getLatestState()` 過 `toLocalView()`
 
-`core/mockMatch.ts` 已經可以退休了（`?mock=1`），真的 match 現在會動。
+`core/mockMatch.ts` 已刪除 —— 真的 match 會動了，假狀態只會讓人誤以為遊戲壞掉。
+開發時用 `?solo=1` 直接開一場 bot 對戰。
