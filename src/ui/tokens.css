@@ -44,11 +44,18 @@
   /* ── 字體 ───────────────────────────────────*/
   --font-display: "Cormorant Garamond", Georgia, "Songti TC", "Noto Serif TC", serif;
   --font-ui:      system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
-  --font-mono:    "JetBrains Mono", ui-monospace, Menlo, monospace;
+  /* 尾端補 Han face：等寬堆疊目前只跑英文，但 HUD 之後若混中文會逐字掉字 */
+  --font-mono:    "JetBrains Mono", ui-monospace, Menlo, "PingFang TC", "Noto Sans TC", monospace;
 
   /* ── 字級 ───────────────────────────────────*/
   --t-xs: 11px; --t-sm: 13px; --t-md: 15px;
   --t-lg: 22px; --t-xl: 34px; --t-2xl: 56px;
+
+  /* 首頁標題走流體。固定 px 在投影機與 10 公尺外太小 ——
+     00-brief.md D4：衝突時預設站觀眾那邊 */
+  --t-hero:   clamp(2.75rem, 7.5vw, 5.5rem);
+  --t-kicker: clamp(0.75rem, 1.1vw, 0.95rem);
+  --hairline: 1px;
 
   /* ── 間距 ───────────────────────────────────*/
   --s1: 4px; --s2: 8px; --s3: 16px; --s4: 28px; --s5: 48px; --s6: 80px;

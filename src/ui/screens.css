@@ -13,44 +13,101 @@
 .screen[hidden] { display: none; }
 
 /*
- * 首頁封面。中央壓暗是必要的 —— 封面正中間就是兩道法術的強光，
- * 標題與按鈕壓在上面會讀不到。邊緣保持亮，畫面才看得出是張圖。
- * 透明度用 color-mix 從 --void 推導，維持「只用 token」。
+ * 首頁封面。
+ *
+ * 不再用整頁 scrim 洗白 —— 量測過：scrim 一調淡標題就掉到 2.0:1，
+ * 調不淡背景就看不見。兩者在同一層上無解（見 .design/04-decision.md E1）。
+ *
+ * 解法是把 ink 從畫上拿下來：畫以全強度鋪滿，文字站到自己的石碑上，
+ * 對比在碑面算而不是在畫上算。碑嵌在 key art 本來就留好的中央空隙裡。
  */
 .screen.cover {
+  justify-content: center;
   background:
-    radial-gradient(ellipse 62% 78% at 50% 52%,
-      color-mix(in srgb, var(--void) 90%, transparent) 0%,
-      color-mix(in srgb, var(--void) 74%, transparent) 55%,
-      color-mix(in srgb, var(--void) 42%, transparent) 100%),
+    /* 只收極外緣，中央完全不壓 —— 兩個法師與火把要看得見 */
+    radial-gradient(ellipse 118% 104% at 50% 48%,
+      transparent 52%,
+      color-mix(in srgb, var(--void) 62%, transparent) 100%),
     url('/cover.jpg') center / cover no-repeat,
     var(--void);
 }
 
-/* 螢幕很窄時圖會被裁到只剩中間，不如收掉，讓文字乾淨 */
-@media (max-width: 40rem) {
-  .screen.cover { background: var(--void); }
+/*
+ * 石碑。這不是通用的半透明卡片 —— 遊戲裡的遮蔽物就是一塊符文石板
+ * （rune_cover.glb），首頁這塊碑跟它是同一個物件。
+ * 底幾乎不透光，文字對比才能在已知的地面上成立。
+ */
+/*
+ * 碑貫穿整個視窗高度。四邊留白的方塊會被讀成「浮起來的卡片」；
+ * 頂天立地的直帶才讀得成建築的一部分 —— 這是它跟一般 modal 的分野。
+ */
+.stele {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  width: min(30rem, 88vw);
+  min-height: 100%;
+  padding: var(--s5) var(--s4);
+  background: linear-gradient(
+    color-mix(in srgb, var(--void) 88%, transparent) 0%,
+    color-mix(in srgb, var(--void) 95%, transparent) 22%,
+    color-mix(in srgb, var(--void) 95%, transparent) 78%,
+    color-mix(in srgb, var(--void) 88%, transparent) 100%);
+  /*
+   * 唯一的破格：兩道邊線不同色。左＝我方暖金，右＝敵方冷藍，
+   * 對應 key art 左右兩個法師的打光，也對應遊戲裡的識別色。
+   * 完美對稱會讓版面死掉；這個不對稱同時把色語言在開打前教完。
+   * （場景裡禁止拿 --them 當裝飾是怕柱子被誤認成對手；這裡沒有對手可混淆，
+   *   而且用意正是介紹這兩個顏色 —— 不是裝飾。）
+   */
+  border-left: var(--hairline) solid color-mix(in srgb, var(--me) 55%, transparent);
+  border-right: var(--hairline) solid color-mix(in srgb, var(--them-hot) 55%, transparent);
+  position: relative;
 }
 
 .screen h1 {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--t-2xl);
-  letter-spacing: .08em;
+  font-size: var(--t-hero);
+  font-weight: 400;
+  line-height: .95;
+  /* 全大寫的襯線在標題級距需要正字距才不會擠 —— 但 .08em 太鬆，像沒調過 */
+  letter-spacing: .045em;
   color: var(--me);
   text-align: center;
 }
 .screen .sub {
-  margin: calc(var(--s3) * -1) 0 0;
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: var(--t-sm);
-  letter-spacing: .18em;
+  font-size: var(--t-kicker);
+  letter-spacing: .3em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--struct-lit);
   text-align: center;
 }
 
+
 .actions { display: flex; flex-direction: column; gap: var(--s2); width: min(340px, 80vw); }
+.stele .actions { width: 100%; gap: var(--s1); }
+
+/*
+ * 碑上的次要動作脫掉外框。四個等寬圓角框堆疊是模板的預設形狀
+ * （09-anti-ai-gate.md 的 W「outlined rounded boxes everywhere」），
+ * 而且四個框會把碑面切成四段，畫面更吵。
+ * 只留一道底線，hover 才亮起。padding 維持不變 —— 觸控目標仍 ≥44px。
+ */
+.stele .btn:not(.primary) {
+  border: none;
+  border-bottom: var(--hairline) solid color-mix(in srgb, var(--struct) 50%, transparent);
+  color: var(--struct-lit);
+  letter-spacing: .04em;
+}
+.stele .btn:not(.primary):hover {
+  border-bottom-color: var(--me);
+  color: var(--me-hot);
+  background: color-mix(in srgb, var(--me) 8%, transparent);
+}
+.stele .btn.primary { margin-bottom: var(--s2); }
 
 .btn {
   font-family: var(--font-ui);
@@ -73,6 +130,8 @@
 }
 .btn.primary:hover { background: var(--me-hot); border-color: var(--me-hot); color: var(--void); }
 .btn:disabled { opacity: .4; cursor: default; }
+/* 等待中：後端沒開或網路慢時，按下去要有回應，不能像沒反應 */
+.btn[aria-busy="true"] { opacity: .55; cursor: progress; }
 
 .field {
   font-family: var(--font-mono);
@@ -95,7 +154,30 @@
   color: var(--me);
 }
 .note { font-size: var(--t-sm); color: var(--dim); max-width: 46ch; text-align: center; line-height: 1.7; }
+.stele .note { margin: 0; color: var(--struct-lit); }
 .err  { font-size: var(--t-sm); color: #E4705E; min-height: 1.4em; text-align: center; }
 
-.runes { display: flex; gap: var(--s4); font-family: var(--font-mono); color: var(--dim); }
-.runes b { color: var(--me); font-size: var(--t-lg); display: block; }
+/*
+ * 這兩個符號就是整個遊戲 —— 玩家在鏡頭前畫的就是它們。
+ * 放大到跟標題同一個層級，讓 judge 三秒內知道「我要用手畫這個」。
+ */
+.runes {
+  display: flex; gap: var(--s5);
+  font-family: var(--font-mono);
+  color: var(--struct-lit);
+  text-align: center;
+}
+.runes span { display: flex; flex-direction: column; align-items: center; gap: var(--s1); }
+.runes b {
+  color: var(--me);
+  font-size: clamp(2rem, 3.4vw, 2.9rem);
+  line-height: 1;
+  display: block;
+  font-weight: 400;
+}
+.runes i {
+  font-style: normal;
+  font-size: var(--t-xs);
+  letter-spacing: .22em;
+  text-transform: uppercase;
+}
