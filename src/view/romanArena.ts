@@ -280,7 +280,7 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
   //   對手頭頂 (y=2.6, z=-7.5) 的畫面比例 = (2.6-1.6)/7.5 = 0.133
   //   FOV 55° 的可視上緣比例 = tan(27.5°) = 0.521
   //   海報連吊桿必須整個落在 0.157 ~ 0.490 之間 —— 高過人頭，又不被畫面切掉
-  const POSTER_W = 7.2, POSTER_H = 4.05, POSTER_Y = 5.8, POSTER_Z = -15.2;
+  const POSTER_W = 8.37, POSTER_H = 4.7, POSTER_Y = 6.52, POSTER_Z = -15.2;
   new THREE.TextureLoader().load('/cover.jpg', (tex) => {
     if (!root || generation !== loadGeneration) { tex.dispose(); return; }
     tex.colorSpace = THREE.SRGBColorSpace;

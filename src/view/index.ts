@@ -15,6 +15,7 @@ import { FpsCamera } from './camera';
 import { buildArena, GAP, type ArenaRefs } from './arena';
 import { buildScenery, updateScenery, disposeScenery } from './scenery';
 import { buildRomanArena, updateRomanArena, disposeRomanArena } from './romanArena';
+import { buildCrowd, updateCrowd, disposeCrowd } from './crowd';
 import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
 import { drawHud } from '../ui/hud';
@@ -101,6 +102,7 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   scene = new THREE.Scene();
   fps = new FpsCamera(innerWidth / innerHeight);
   arena = romanScene ? buildRomanArena(scene) : buildArena(scene);
+  if (romanScene) buildCrowd(scene);   // 觀眾席，見 CROWD-BRIEF.md（Codex 的檔）
   if (!romanScene) buildScenery(scene); // 舊月光場景保留：加 ?scene=moon 即可切回
   actors = new Actors(scene);
   runeEffects = new RuneEffects();
@@ -139,6 +141,7 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   actors.update(s, dt);
   if (romanScene) {
     updateRomanArena(clock);
+    updateCrowd(clock, dt);          // 人群只存在於羅馬場景，跟 buildCrowd 的條件一致
   } else {
     // 環境呼吸：星光微閃、月暈脈動。畫面完全靜止會讓人以為當機
     (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
@@ -261,7 +264,7 @@ export function disposeView(): void {
   removeEventListener('resize', onResize);
   actors.dispose();
   runeEffects.dispose();
-  if (romanScene) disposeRomanArena();
+  if (romanScene) { disposeRomanArena(); disposeCrowd(); }
   else disposeScenery();
   disposeWebcamPip();
   disposeScene();
