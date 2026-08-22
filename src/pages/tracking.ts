@@ -56,12 +56,21 @@ function playerModeCss(): string {
        #calibration-progress 又把標題再講一次。兩個都是面板變高變擋的原因。 */
     #training-steps, #calibration-progress { display: none !important; }
     .shell {
-      width: min(64rem, calc(100vw - 4rem)) !important;
+      width: min(72rem, calc(100vw - 4rem)) !important;
       padding: 0 0 13rem !important;   /* 面板實測約 11rem，留一點呼吸就好 */
       min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
     }
+    /*
+     * ⚠️ 舞台**必須**鎖 4:3。相機是 640×480，而 TIP ONLY 取樣框是用舞台座標
+     * 定位的 DOM 元素，不是畫進影像裡的。舞台一旦比 4:3 寬，影像會左右留黑邊，
+     * 框就會落在黑邊上 —— 筆伸不進去，校準永遠過不了。
+     * 改這裡的比例之前先確認相機解析度。
+     */
     .stage-wrap {
-      height: min(66vh, 40rem) !important; min-height: 0 !important;
+      height: min(62vh, 46rem) !important; min-height: 0 !important;
+      aspect-ratio: 4 / 3 !important;
+      width: auto !important;
+      align-self: center !important;
       border-radius: 0 !important;
       border-color: ${struct} !important;
       background: ${void_} !important;
@@ -92,6 +101,33 @@ function playerModeCss(): string {
   `;
 }
 
+/**
+ * 叫 lab 重算 canvas 尺寸。
+ *
+ * ⚠️ 這一行是必要的，不是保險。lab **只在 window resize 時**依 `.stage-wrap`
+ * 的當下寬高重設 canvas 的 backing store，純 CSS 改動不會觸發它。
+ * 我們注入樣式改了舞台大小之後如果不叫它重算，backing store 會停在舊尺寸，
+ * 於是：影像被非等比拉伸，而 TIP ONLY 取樣框（位置用 canvas 座標算、卻當成
+ * CSS px 寫進 style.left）會整個飛到影像外面 —— 筆伸不進去，校準永遠過不了。
+ *
+ * 實測：不叫重算 backing/CSS 比例是 3.175，叫了之後回到正確的 2.00（= dpr）。
+ */
+function nudgeResize(frame: HTMLIFrameElement): void {
+  try {
+    frame.contentWindow?.dispatchEvent(new Event('resize'));
+  } catch { /* 跨源就算了 */ }
+}
+
+/*
+ * 一次不夠。lab 的 resize listener 不是在 load 當下掛好的（相機初始化之後才掛），
+ * 太早送它收不到；而 canvas 也可能在相機第一次出圖時又被重設一次。
+ * 所以送一串，成本是幾個 setTimeout，換「一定會校正到」。
+ */
+const NUDGE_DELAYS_MS = [0, 120, 400, 1000, 2000];
+function nudgeResizeRepeatedly(frame: HTMLIFrameElement): void {
+  for (const delay of NUDGE_DELAYS_MS) setTimeout(() => nudgeResize(frame), delay);
+}
+
 /** iframe 同源才注得進去；跨源會丟例外，包起來不要讓校準頁整個掛掉 */
 function applyPlayerMode(frame: HTMLIFrameElement): void {
   if (DEBUG) return;
@@ -102,6 +138,8 @@ function applyPlayerMode(frame: HTMLIFrameElement): void {
     style.dataset.runespire = 'player-mode';
     style.textContent = playerModeCss();
     doc.head.appendChild(style);
+    // 等一幀讓新樣式套用完，再叫它照新尺寸重算
+    nudgeResizeRepeatedly(frame);
   } catch { /* 注不進去就維持 lab 原樣，至少還能校準 */ }
 }
 
@@ -186,7 +224,7 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
     if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
     const message = event.data;
     if (!message || message.source !== 'runespire-tracking') return;
-    if (message.type === 'ready') { ready = true; retell(); }
+    if (message.type === 'ready') { ready = true; retell(); nudgeResizeRepeatedly(frame); }
     if (message.type === 'frame' && message.frame) {
       publishExternalFrame(message.frame);
       showTip(Boolean(message.frame.tip));
@@ -220,4 +258,6 @@ export function enterTracking(): void {
   }
   trackingFrame.classList.remove('parked');
   show('tracking');
+  // parked 時 iframe 只有 20rem×15rem，放開之後尺寸整個變 —— 同樣要叫它重算
+  nudgeResizeRepeatedly(trackingFrame);
 }
