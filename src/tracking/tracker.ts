@@ -5,6 +5,7 @@
  * CV 迴圈 30Hz 與遊戲迴圈 60Hz 分離 —— 遊戲每幀讀最新值，不等 CV。
  */
 import type { WandFrame } from '../core/types';
+import { createHandSource } from './handSource';
 import { createMouseSource } from './mouseSource';
 
 export interface TipSource {
@@ -17,21 +18,33 @@ export interface TipSource {
 const IDLE: WandFrame = { tip: null, tipConfidence: 0, source: 'mouse', t: 0 };
 
 let current: TipSource | null = null;
+let sourceRequest = 0;
 
 export async function setSource(kind: WandFrame['source']): Promise<void> {
+  const request = ++sourceRequest;
   current?.dispose();
   current = null;
+  let next: TipSource;
   switch (kind) {
     case 'mouse':
-      current = createMouseSource();
+      next = createMouseSource();
       break;
     case 'mediapipe':
-      // TODO [Ivan, 13:00]：handSource，見 frontend/PLAN.md §4.1
-      console.warn('[tracker] mediapipe 尚未實作，退回 mouse');
-      current = createMouseSource();
+      next = createHandSource();
       break;
   }
-  await current.start();
+  try {
+    await next.start();
+    if (request !== sourceRequest) { next.dispose(); return; }
+    current = next;
+  } catch (error) {
+    next.dispose();
+    if (request !== sourceRequest) return;
+    console.warn('[tracker] webcam unavailable, falling back to mouse', error);
+    const fallback = createMouseSource();
+    await fallback.start();
+    current = fallback;
+  }
 }
 
 export function getFrame(): WandFrame {
@@ -42,4 +55,4 @@ export function currentKind(): WandFrame['source'] | null {
   return current?.kind ?? null;
 }
 
-export function dispose(): void { current?.dispose(); current = null; }
+export function dispose(): void { sourceRequest++; current?.dispose(); current = null; }
