@@ -40,6 +40,7 @@
 ```ts
 // ── src/runes/index.ts ───────────────────────── [Bill]
 export function initRunes(): void;    // 內部自己 listen Shift + 讀 tracker.getFrame()
+export function getStroke(): readonly Vec2[];   // ⚠️ 不要刪！view/ 靠這個畫拖尾
 export function disposeRunes(): void;
 // 發出：EV.CAST_BEGIN · EV.CAST (CastEvent) · EV.FIZZLE · EV.CAST_END
 
@@ -68,6 +69,21 @@ createRoom() / connect() / sendInput() / sendCast() / sendState()   // net
 ```
 
 **型別全部從 `core/types.ts` import。事件名全部用 `core/bus.ts` 的 `EV`。**
+
+### ⚠️ `src/core/` 是唯一會撞的地方
+
+`types.ts` `bus.ts` `config.ts` 由 **Wesley 擁有**。
+Bill 需要加事件或參數 → **在群組講一聲，Wesley 加**。兩個人同時改同一個物件字面值必衝突。
+
+目前已經幫 Bill 準備好的：
+```
+EV.COVER_BUILT · EV.COVER_HIT · EV.NO_MANA · EV.MP_CHANGE · EV.NEAR_MISS
+CONFIG.MP_MAX / MP_REGEN_PER_S / COST / COVER_HP / COVER_MAX
+CONFIG.COVER_OFFSET / COVER_BLOCK_W / COVER_HIDE_W
+CONFIG.DMG_ATTACK / PROJ_MS / HIT_WIDTH / MOVE_SPEED / BOT_REACT_MS
+types: Cover · OpponentIntent · IDLE_INTENT
+```
+**不夠再說，不要自己加。**
 
 ---
 
