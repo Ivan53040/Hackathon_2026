@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RuneSpire · Personal 3D Model Test</title>
+    <style>
+      :root {
+        color: #f6eedb;
+        background: #090914;
+        font-family: system-ui, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      body { margin: 0; overflow: hidden; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+
+      .panel {
+        position: fixed;
+        z-index: 2;
+        top: 16px;
+        left: 16px;
+        width: min(360px, calc(100vw - 32px));
+        padding: 16px;
+        border: 1px solid #8d744e;
+        border-radius: 12px;
+        background: rgb(10 10 22 / 88%);
+        box-shadow: 0 16px 48px rgb(0 0 0 / 45%);
+        backdrop-filter: blur(10px);
+      }
+
+      h1 { margin: 0 0 5px; font-size: 17px; }
+      p { margin: 0 0 12px; color: #bcb4a5; font-size: 12px; line-height: 1.45; }
+      .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      button {
+        flex: 1;
+        min-width: 90px;
+        padding: 9px 11px;
+        border: 1px solid #62553f;
+        border-radius: 8px;
+        color: inherit;
+        background: #171625;
+        cursor: pointer;
+      }
+      button:hover, button.active { border-color: #e3b766; background: #292138; }
+      label { display: grid; grid-template-columns: 66px 1fr 42px; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; }
+      input { width: 100%; accent-color: #e3b766; }
+      output, #status { color: #e3b766; font-family: ui-monospace, monospace; }
+      #status { margin-top: 12px; font-size: 11px; }
+      .hint { position: fixed; right: 14px; bottom: 12px; color: #a29a8d; font-size: 11px; }
+    </style>
+  </head>
+  <body>
+    <section class="panel">
+      <h1>Personal 3D model test</h1>
+      <p>This page is separate from the game. Preview the assets at the opponent position in the Roman arena.</p>
+      <div class="row">
+        <button id="rock" class="active">Rock attack</button>
+        <button id="spike">Spike attack</button>
+        <button id="mushroom">Mushroom attack</button>
+        <button id="reset">Reset view</button>
+      </div>
+      <label>Scale <input id="scale" type="range" min="0.1" max="8" step="0.05" value="1" /><output id="scaleValue">1.00</output></label>
+      <label>Height <input id="height" type="range" min="-2" max="4" step="0.05" value="0" /><output id="heightValue">0.00</output></label>
+      <label>Rotation <input id="rotation" type="range" min="-180" max="180" step="1" value="0" /><output id="rotationValue">0°</output></label>
+      <div id="status">Loading rock.glb…</div>
+    </section>
+    <div class="hint">Drag to orbit · wheel to zoom · R resets</div>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+      import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+      renderer.setSize(innerWidth, innerHeight);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.08;
+      renderer.shadowMap.enabled = true;
+      document.body.prepend(renderer.domElement);
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x090914);
+      scene.fog = new THREE.Fog(0x090914, 18, 48);
+
+      const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.target.set(0, 1.1, -7.5);
+
+      scene.add(new THREE.HemisphereLight(0xbfc7ff, 0x17131f, 1.1));
+      const key = new THREE.DirectionalLight(0xe7d8bd, 3.2);
+      key.position.set(-6, 12, 5);
+      key.castShadow = true;
+      scene.add(key);
+      const warm = new THREE.PointLight(0xffa847, 18, 12, 2);
+      warm.position.set(4, 3, -5);
+      scene.add(warm);
+
+      const ground = new THREE.Mesh(
+        new THREE.CircleGeometry(18, 64),
+        new THREE.MeshStandardMaterial({ color: 0x282238, roughness: 0.96 }),
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.63;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const loader = new GLTFLoader();
+      const status = document.querySelector('#status');
+      const modelRoot = new THREE.Group();
+      modelRoot.position.z = -7.5;
+      scene.add(modelRoot);
+
+      let currentModel = null;
+      let mixer = null;
+      let naturalScale = 1;
+      let currentName = 'rock';
+      const clock = new THREE.Clock();
+      const defaultScales = { rock: 1, spike: 1, mushroom: 0.6 };
+
+      function frameModel(model) {
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.x -= center.x;
+        model.position.y -= box.min.y;
+        model.position.z -= center.z;
+        naturalScale = 2.2 / Math.max(size.x, size.y, size.z, 0.001);
+        applyTransform();
+      }
+
+      function applyTransform() {
+        if (!currentModel) return;
+        const scale = Number(document.querySelector('#scale').value);
+        const height = Number(document.querySelector('#height').value);
+        const rotation = Number(document.querySelector('#rotation').value);
+        currentModel.scale.setScalar(naturalScale * scale);
+        modelRoot.position.y = -0.62 + height;
+        modelRoot.rotation.y = THREE.MathUtils.degToRad(rotation);
+        document.querySelector('#scaleValue').value = scale.toFixed(2);
+        document.querySelector('#heightValue').value = height.toFixed(2);
+        document.querySelector('#rotationValue').value = `${rotation}°`;
+      }
+
+      function disposeModel(model) {
+        if (mixer) {
+          mixer.stopAllAction();
+          mixer.uncacheRoot(model);
+          mixer = null;
+        }
+        model.traverse((node) => {
+          if (!node.isMesh) return;
+          node.geometry?.dispose();
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          materials.forEach((material) => material?.dispose());
+        });
+        model.removeFromParent();
+      }
+
+      function loadModel(name) {
+        currentName = name;
+        const defaultScale = defaultScales[name] ?? 1;
+        document.querySelector('#scale').value = String(defaultScale);
+        document.querySelector('#scaleValue').value = defaultScale.toFixed(2);
+        status.textContent = `Loading ${name}.glb…`;
+        document.querySelectorAll('button[id="rock"], button[id="spike"], button[id="mushroom"]').forEach((button) => {
+          button.classList.toggle('active', button.id === name);
+        });
+        loader.load(`/models/skills/${name}.glb`, (gltf) => {
+          if (name !== currentName) {
+            disposeModel(gltf.scene);
+            return;
+          }
+          if (currentModel) disposeModel(currentModel);
+          currentModel = gltf.scene;
+          currentModel.traverse((node) => {
+            if (!node.isMesh) return;
+            node.castShadow = true;
+            node.receiveShadow = true;
+          });
+          modelRoot.add(currentModel);
+          frameModel(currentModel);
+          if (gltf.animations.length) {
+            mixer = new THREE.AnimationMixer(currentModel);
+            gltf.animations.forEach((clip) => mixer.clipAction(clip).play());
+            status.textContent = `${name}.glb playing: ${gltf.animations.map((clip) => clip.name || 'unnamed').join(', ')}`;
+          } else {
+            status.textContent = `${name}.glb loaded (no animation clips found)`;
+          }
+        }, undefined, (error) => {
+          console.error(error);
+          status.textContent = `Could not load ${name}.glb — check the console`;
+        });
+      }
+
+      function resetView() {
+        camera.position.set(4.5, 3.2, 1.5);
+        controls.target.set(0, 1.1, -7.5);
+        document.querySelector('#scale').value = '1';
+        document.querySelector('#height').value = '0';
+        document.querySelector('#rotation').value = '0';
+        applyTransform();
+        controls.update();
+      }
+
+      loader.load('/models/roman_arena.glb', (gltf) => {
+        gltf.scene.scale.set(1.2, 1, 1.2);
+        gltf.scene.position.z = -1.35;
+        gltf.scene.traverse((node) => {
+          if (!node.isMesh) return;
+          node.receiveShadow = true;
+          const materials = Array.isArray(node.material) ? node.material : [node.material];
+          materials.forEach((material) => {
+            if (material.name === 'Brazier Flame') material.visible = false;
+          });
+        });
+        scene.add(gltf.scene);
+      });
+
+      document.querySelector('#rock').addEventListener('click', () => loadModel('rock'));
+      document.querySelector('#spike').addEventListener('click', () => loadModel('spike'));
+      document.querySelector('#mushroom').addEventListener('click', () => loadModel('mushroom'));
+      document.querySelector('#reset').addEventListener('click', resetView);
+      ['scale', 'height', 'rotation'].forEach((id) => document.querySelector(`#${id}`).addEventListener('input', applyTransform));
+      addEventListener('keydown', (event) => { if (event.key.toLowerCase() === 'r') resetView(); });
+      addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+      });
+
+      resetView();
+      loadModel('rock');
+      renderer.setAnimationLoop(() => {
+        mixer?.update(Math.min(clock.getDelta(), 0.1));
+        controls.update();
+        renderer.render(scene, camera);
+      });
+    </script>
+  </body>
+</html>
