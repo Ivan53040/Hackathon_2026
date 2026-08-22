@@ -7,7 +7,7 @@
 import './ui/tokens.css';
 import { CONFIG } from './core/config';
 import { EV, emit, on } from './core/bus';
-import { initInput, isCasting } from './core/input';
+import { initInput, isCasting, getMoveAxis } from './core/input';
 import { getFrame, setSource, currentKind } from './tracking/tracker';
 import { initRunes, disposeRunes } from './runes';
 import { initMatch, tickMatch, createBotOpponent } from './match';
@@ -16,7 +16,7 @@ import { show, currentScreen } from './pages';
 import { buildLanding } from './pages/landing';
 import { buildLobby, enterLobby } from './pages/lobby';
 import { buildResults, enterResults } from './pages/results';
-import { connect, createRemoteOpponent, disconnect, sendInput, sendCast, isHost } from './net';
+import { connect, createRemoteOpponent, disconnect, sendInput, sendCast, sendStart, isHost } from './net';
 import type { MatchState, Mode } from './core/types';
 
 // 開發捷徑：?solo=1 直接開一場真的 bot 對戰，跳過首頁。
@@ -51,7 +51,12 @@ buildLanding(app, {
   onJoin: async (code, playerId) => { await connect(code, playerId); enterLobby(code); },
   onSolo: () => startMatch('solo'),
 });
-buildLobby(app, () => startMatch(isHost() ? 'host' : 'guest'), () => startMatch('solo'));
+buildLobby(app, () => { if (isHost()) sendStart(); startMatch(isHost() ? 'host' : 'guest'); }, () => startMatch('solo'));
+
+// host 按下開始 → guest 自動進場，不用兩邊各按一次（在台上一定會有人忘記按）
+on(EV.NET_PEER_MSG, (p) => {
+  if ((p as { type?: string })?.type === 'start' && !isHost() && currentScreen() !== 'game') startMatch('guest');
+});
 buildResults(app, () => startMatch(mode), () => { disconnect(); show('landing'); });
 
 function startMatch(m: Mode): void {
@@ -111,10 +116,11 @@ function loop(now: number): void {
 
     const s = tickMatch(dt);
 
-    // 15Hz 送位置給對手。不節流會塞爆
+    // 15Hz 送走位意圖給對手。不節流會塞爆
     if (mode !== 'solo' && now - netAt > 1000 / CONFIG.TICK_HZ) {
       netAt = now;
-      sendInput(s.me.x, s.me.casting, s.me.castProgress);
+      // 🔴 送本地意圖，不要送 s.me.x —— 那是 host 算給我的位置，送回去會變成死循環
+      sendInput(getMoveAxis(), isCasting());
     }
 
     renderView(s, f, dt);

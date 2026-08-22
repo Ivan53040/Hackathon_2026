@@ -4,7 +4,7 @@
  */
 export {
   createRoom, checkRoom, connect, disconnect,
-  sendInput, sendCast, sendState, sendRematch,
+  sendInput, sendCast, sendState, sendRematch, sendStart,
   getRole, isHost, getLatestState, getRTT, hasPeer, isConnected,
 } from './socket';
 export { createRemoteOpponent } from './remoteOpponent';

@@ -81,15 +81,21 @@ export function connect(code: string, playerId: string): Promise<Role> {
 
         case 'input':
         case 'cast':
+        case 'start':
           lastPeerMsgAt = performance.now();
-          emit(EV.NET_PEER_MSG, m);       // RemoteOpponent 在聽這個
+          emit(EV.NET_PEER_MSG, m);       // RemoteOpponent 在聽 input/cast，main 在聽 start
           break;
 
+        // 🔴 ping/pong 也要算「對方還活著」。
+        // 大廳裡沒有人送 input/state（遊戲迴圈只在 game 畫面才送），
+        // 少了這兩行，兩個人進房 3 秒後就會互相判定對方斷線，開始鍵永遠按不下去。
         case 'ping':
+          lastPeerMsgAt = performance.now();
           send({ type: 'pong', t: m.t });
           break;
 
         case 'pong':
+          lastPeerMsgAt = performance.now();
           rtt = performance.now() - (m.t as number);
           break;
       }
@@ -135,10 +141,20 @@ function send(obj: unknown): void {
 // ─── 對外送訊息 ──────────────────────────────────
 let seq = 0;
 
-/** guest 與 host 都送。15Hz，由 main 的節流迴圈呼叫 */
-export function sendInput(x: number, casting: boolean, castProgress: number): void {
-  send({ type: 'input', seq: seq++, x, casting, castProgress });
+/**
+ * guest 與 host 都送。15Hz，由 main 的節流迴圈呼叫。
+ *
+ * 🔴 送的是**意圖**（moveAxis）不是**位置**（x）。
+ * 位置是 host 權威模擬的產物 —— guest 畫面上的 x 就是 host 上一幀算給它的。
+ * 如果 guest 把那個 x 原封不動送回來，host 算出來的位移永遠是 0，
+ * guest 就完全動不了、法陣也不會亮。意圖是本地的，不會繞這一圈。
+ */
+export function sendInput(moveAxis: number, casting: boolean): void {
+  send({ type: 'input', seq: seq++, moveAxis, casting });
 }
+
+/** host 按下「開始」時廣播一次，guest 自動進場 —— 不用兩邊各按一次 */
+export function sendStart(): void { send({ type: 'start' }); }
 
 /** 事件觸發，不節流 —— 施法漏掉一次比延遲 60ms 嚴重得多 */
 export function sendCast(spell: Spell, score: number, durationMs: number): void {

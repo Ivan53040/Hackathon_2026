@@ -12,26 +12,27 @@
  *      host  → 自己模擬（用這裡回傳的 intent）
  *      guest → 直接吃 socket.getLatestState()，不模擬
  */
+import { CONFIG } from '../core/config';
 import { EV, on } from '../core/bus';
 import { IDLE_INTENT, type MatchState, type Opponent, type OpponentIntent, type Spell } from '../core/types';
 import { isHost } from './socket';
 
-interface PeerMsg { type: string; x?: number; casting?: boolean; castProgress?: number; spell?: Spell; }
+interface PeerMsg { type: string; moveAxis?: number; casting?: boolean; spell?: Spell; }
 
 export function createRemoteOpponent(): Opponent {
-  let lastX: number | null = null;
-  let prevX: number | null = null;
+  let moveAxis = 0;
   let casting = false;
-  let castProgress = 0;
+  let castStartedAt = 0;
   let pendingCast: Spell | null = null;
 
   const offMsg = on(EV.NET_PEER_MSG, (raw) => {
     const m = raw as PeerMsg;
     if (m.type === 'input') {
-      prevX = lastX;
-      lastX = typeof m.x === 'number' ? m.x : lastX;
-      casting = !!m.casting;
-      castProgress = m.castProgress ?? 0;
+      // 直接吃對方的走位意圖 —— 不再從兩次 x 反推位移（那條路會被 host 的權威 x 打死循環）
+      moveAxis = typeof m.moveAxis === 'number' ? Math.sign(m.moveAxis) : 0;
+      const nowCasting = !!m.casting;
+      if (nowCasting && !casting) castStartedAt = performance.now();   // 起手的那一刻
+      casting = nowCasting;
     } else if (m.type === 'cast' && m.spell) {
       // 施法事件不能漏，所以先存起來，等 match/ 這一幀來拿
       pendingCast = m.spell;
@@ -50,27 +51,24 @@ export function createRemoteOpponent(): Opponent {
       // guest 端不模擬對手，畫面吃 host 的 state，所以回傳中性意圖就好
       if (!isHost()) return IDLE_INTENT;
 
-      // host 端：從對方兩次 input 的位移反推他在往哪邊走。
-      // 用位移而不是直接吃他的 x，是因為位置由 host 權威模擬 ——
-      // 直接吃 x 會讓遠端玩家可以瞬移，也會讓 15Hz 的抖動變成畫面抖動。
-      let moveAxis = 0;
-      if (lastX !== null && prevX !== null) {
-        const d = lastX - prevX;
-        if (Math.abs(d) > 0.001) moveAxis = Math.sign(d);
-      }
-
       const cast = pendingCast;
       pendingCast = null;                 // 拿走就清掉，不會重複觸發
+
+      // 起手光暈的進度由 host 自己算 —— 不放進 wire，少一個欄位少一個不同步的來源。
+      // 公式跟 match/index.ts 的 me.castProgress 一致（elapsed / MAX_STROKE_MS）。
+      const castProgress = casting
+        ? Math.min(1, (performance.now() - castStartedAt) / CONFIG.MAX_STROKE_MS)
+        : 0;
 
       return { moveAxis, cast, casting, castProgress };
     },
 
     dispose(): void {
       offMsg();
-      lastX = prevX = null;
+      moveAxis = 0;
       pendingCast = null;
       casting = false;
-      castProgress = 0;
+      castStartedAt = 0;
     },
   };
 }

@@ -9,7 +9,7 @@
 
 export const SPELLS = ['attack', 'wall'] as const;
 
-export const CLIENT_TYPES = ['input', 'cast', 'state', 'ping', 'pong', 'rematch'] as const;
+export const CLIENT_TYPES = ['input', 'cast', 'state', 'ping', 'pong', 'rematch', 'start'] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
 
 const MAX_ARRAY = 32;
@@ -26,7 +26,9 @@ export function isValidMessage(m: unknown): m is { type: ClientType } {
 
   switch (o.type) {
     case 'input':
-      return num(o.x) && typeof o.casting === 'boolean';
+      // ⚠️ v6.1：欄位從 x（位置）改成 moveAxis（意圖）。
+      // 位置是 host 權威模擬的產物，guest 送回位置會造成死循環 —— 見 src/net/socket.ts
+      return num(o.moveAxis) && typeof o.casting === 'boolean';
     case 'cast':
       return SPELLS.includes(o.spell as (typeof SPELLS)[number]) && num(o.score);
     case 'state':
@@ -37,6 +39,7 @@ export function isValidMessage(m: unknown): m is { type: ClientType } {
     case 'pong':
       return num(o.t);
     case 'rematch':
+    case 'start':
       return true;
     default:
       return false;
