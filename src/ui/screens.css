@@ -66,13 +66,43 @@
  */
 .screen.cover {
   justify-content: center;
-  background:
-    /* 只收極外緣，中央完全不壓 —— 兩個法師與火把要看得見 */
-    radial-gradient(ellipse 118% 104% at 50% 48%,
-      transparent 52%,
-      color-mix(in srgb, var(--void) 62%, transparent) 100%),
-    url('/cover.jpg') center / cover no-repeat,
-    var(--void);
+  /* 影片載入前、載不到、或使用者要求減少動態時，這張底圖就是畫面 */
+  background: url('/cover.jpg') center / cover no-repeat, var(--void);
+  overflow: hidden;              /* object-fit 放大後不要撐出捲軸 */
+}
+
+/*
+ * 首頁改成動態封面。影片墊在最底層，上面那層 scrim 與石碑完全沒動 ——
+ * 對比仍然在碑面上算，所以背景會動也不影響可讀性（見 .design/04-decision.md E1）。
+ *
+ * 一定要 muted：瀏覽器只允許靜音自動播放，有聲的會被擋掉。
+ * 聲音由 landing.ts 在第一次點擊時才打開。
+ */
+.cover-video {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;          /* 不要擋到底下的按鈕 */
+}
+
+/* 原本那層 scrim 原封不動，只是從 background 挪到影片上面一層 */
+.screen.cover::after {
+  content: '';
+  position: absolute; inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  /* 只收極外緣，中央完全不壓 —— 兩個法師與火把要看得見 */
+  background: radial-gradient(ellipse 118% 104% at 50% 48%,
+    transparent 52%,
+    color-mix(in srgb, var(--void) 62%, transparent) 100%);
+}
+
+.screen.cover > .stele { z-index: 2; }
+
+/* 會暈的人不該被強迫看一支一直在爆閃的片子 */
+@media (prefers-reduced-motion: reduce) {
+  .cover-video { display: none; }
 }
 
 /*

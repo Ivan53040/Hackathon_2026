@@ -21,6 +21,16 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
   // 全部的字收進一塊石碑裡 —— 封面因此可以全強度鋪滿，
   // 對比在碑面上成立而不是在畫上。見 .design/04-decision.md
   el.innerHTML = `
+    <!--
+      動態封面。muted 是必要的不是選擇的：瀏覽器只放行靜音自動播放，
+      有聲的自動播放會被擋 —— 在自己的機器上可能過（互動過很多次），
+      評審的乾淨瀏覽器不會過。聲音改由第一次點擊開啟，見下面 armAudio()。
+      poster 讓 cover.jpg 先頂著，影片載完才接上，斷網也不會開天窗。
+    -->
+    <video class="cover-video" data-cover-video
+           src="/cover.mp4" poster="/cover-poster.jpg"
+           autoplay muted loop playsinline preload="auto"
+           aria-hidden="true" tabindex="-1"></video>
     <div class="stele">
       <h1>RUNESPIRE</h1>
       <p class="sub">Draw the rune · Cast the spell</p>
@@ -98,6 +108,22 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
 
   const err = el.querySelector<HTMLElement>('[data-err]')!;
   const fail = (m: string) => { err.textContent = m; };
+
+  /*
+   * 封面聲音。自動播放政策擋的是「沒有使用者手勢的有聲播放」，
+   * 所以影片先靜音播，等第一次點擊（任何一顆按鈕都算）再開聲。
+   * 只做一次，之後就解除監聽。
+   * play() 回傳的 promise 可能被拒絕（例如使用者關了自動播放）——
+   * 吞掉就好，首頁不該因為沒聲音而噴錯。
+   */
+  const coverVideo = el.querySelector<HTMLVideoElement>('[data-cover-video]');
+  function armAudio(): void {
+    if (!coverVideo) return;
+    coverVideo.muted = false;
+    coverVideo.volume = 0.35;        // 背景音，不要蓋過講解的人
+    void coverVideo.play().catch(() => { /* 擋掉就維持靜音，不影響遊戲 */ });
+  }
+  el.addEventListener('pointerdown', armAudio, { once: true });
 
   /** 連線要等，等的時候按鈕要看得出在等 —— 後端沒開時這是唯一的線索 */
   async function busy<T>(b: HTMLButtonElement, label: string, job: () => Promise<T>): Promise<T | null> {
