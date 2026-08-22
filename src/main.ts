@@ -52,7 +52,7 @@ initView(canvas);
 
 let mockX = 0.5;
 let last = performance.now();
-let gameFps = 0, frames = 0, fpsAt = 0;
+let gameFps = 60, frames = 0, fpsAt = performance.now();
 
 function loop(now: number): void {
   const dt = Math.min((now - last) / 1000, 0.25);
@@ -70,15 +70,15 @@ function loop(now: number): void {
   }
 
   renderView(s, f, dt);
-  if (hudOn) drawHud(s);
+  if (hudOn) drawDebug(s);
 
   frames++;
   if (now - fpsAt > 500) { gameFps = (frames * 1000) / (now - fpsAt); frames = 0; fpsAt = now; }
   requestAnimationFrame(loop);
 }
 
-/** 全隊調參的眼睛。view/ 接手渲染之後這裡只留文字 */
-function drawHud(s: MatchState): void {
+/** 全隊調參的眼睛。真正的 HUD 在 ui/hud.ts，這裡只有除錯數字 */
+function drawDebug(s: MatchState): void {
   ctx.font = '12px ui-monospace, monospace';
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dim').trim() || '#7B8296';
   const lines = [

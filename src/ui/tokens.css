@@ -1,45 +1,67 @@
 /**
- * 設計 token　[擁有者：D]
+ * 設計 token　[擁有者：Wesley]
  *
  * 全隊只能引用 token，不准在別處寫死 hex 與 px。
- * ⚠️ 顏色是 Stage 3 三個方向的暫定值 —— Stage 4 選定方向後整組會換。
- *    見 .design/03-directions.md
+ * 色票來自美術的概念圖（RUNESPIRE Attack Spell Flow / Wizard Progression）。
+ *
+ * ⚠️ 兩處刻意偏離概念圖，理由寫在旁邊 —— 都是為了投影機上的可讀性。
  */
 :root {
-  /* ── 顏色（暫定：星圖 Starchart）───────────── */
-  --void:        #05070F;
-  --struct:      #4E6FA8;
-  --struct-lit:  #7FA3DC;
-  --me:          #F5C542;   /* 你：暖金 · 填實 */
-  --me-hot:      #FFF4D6;
-  --them:        #1F86AC;   /* 對手：冷青 · 空心 */
-  --ember:       #FF7A3D;
-  --ash:         #3A3D48;
-  --parchment:   #E8DCC4;
-  --dim:         #7B8296;
+  /* ── 底 ─────────────────────────────────────
+     概念圖的 DEEP BLUE。比純黑亮，投影機上反而更穩 */
+  --void:        #0E182F;
 
-  /* ── 字體 ───────────────────────────────── */
-  --font-display: "Cormorant Garamond", Georgia, "Songti TC", serif;
-  --font-ui:      system-ui, -apple-system, "PingFang TC", sans-serif;
+  /* ── 建築 ───────────────────────────────────
+     C1 場地 vs 天空 3.61:1 ✅（需 ≥3:1，v3 舊色票只有 1.24:1） */
+  --struct:      #5C6EAE;
+  --struct-lit:  #8FA0D8;   /* C2 受光 vs 場地 1.91:1 ✅（需 ≥1.6:1） */
+
+  /* ── 我方：暖金 ─────────────────────────────
+     概念圖 GOLD ACCENT #D4AF37。對底 8.39:1 */
+  --me:          #D4AF37;
+  --me-hot:      #FFEFC2;
+
+  /* ── 敵方：冷藍 ─────────────────────────────
+     ⚠️ 概念圖的 CRYSTAL BLUE #3CC6FF 直接當識別色會 fail：
+        它與金的亮度差只有 1.08×，投影機洗掉飽和度後兩邊同色。
+        識別色壓深到 #1E7FB8（亮度差 2.38× ✅），
+        #3CC6FF 保留當核心亮部，看起來仍是同一個水晶藍家族。 */
+  --them:        #1E7FB8;
+  --them-hot:    #3CC6FF;
+
+  /* ── 法術 ───────────────────────────────────
+     核心是白藍水晶（概念圖 LIGHT BLUE），
+     外圈光暈跟著擁有者走 --me / --them ——
+     否則「那顆飛過來的是誰的」在最關鍵的一刻讀不出來 */
+  --spell-core:  #E6F2FF;
+  --magic:       #5A3DFF;   /* 概念圖 MAGIC PURPLE，符文吸附爆開時用 */
+  --ash:         #39405C;   /* 失敗的符文 */
+
+  /* ── 文字 ───────────────────────────────────*/
+  --parchment:   #E6F2FF;
+  --dim:         #7C88AB;
+
+  /* ── 字體 ───────────────────────────────────*/
+  --font-display: "Cormorant Garamond", Georgia, "Songti TC", "Noto Serif TC", serif;
+  --font-ui:      system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* ── 字級 ───────────────────────────────── */
+  /* ── 字級 ───────────────────────────────────*/
   --t-xs: 11px; --t-sm: 13px; --t-md: 15px;
   --t-lg: 22px; --t-xl: 34px; --t-2xl: 56px;
 
-  /* ── 間距 ───────────────────────────────── */
+  /* ── 間距 ───────────────────────────────────*/
   --s1: 4px; --s2: 8px; --s3: 16px; --s4: 28px; --s5: 48px; --s6: 80px;
-
   --radius: 2px;
 
-  /* ── 動畫（對應 frontend/PLAN.md §5）────────── */
+  /* ── 動畫（對應 frontend/PLAN.md §5）──────────*/
   --ease-out:  cubic-bezier(.22,.61,.36,1);
   --ease-in:   cubic-bezier(.55,.06,.68,.19);
   --ease-back: cubic-bezier(.34,1.56,.64,1);
-  --d-snap:   120ms;   /* A13 符文吸附 */
-  --d-fast:   180ms;   /* A5 閃避 */
-  --d-hit:    300ms;   /* A6 受擊 */
-  --d-fall:   800ms;   /* A7 倒下 */
+  --d-snap:   120ms;   /* A13 符文吸附 —— 全場最值錢的 30 行 */
+  --d-fast:   180ms;
+  --d-hit:    300ms;
+  --d-fall:   800ms;
 }
 
 * { box-sizing: border-box; }
