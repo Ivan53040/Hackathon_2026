@@ -24,36 +24,78 @@
   width: 20rem; height: 15rem;
   opacity: 0; pointer-events: none; z-index: -1;
 }
+
+/*
+ * 舞台式版面。相機（iframe 裡的 .stage-wrap）坐在畫面上半，
+ * 這塊面板收在下緣置中，寬度跟舞台對齊 —— 兩者讀起來是同一個東西的上下兩半，
+ * 不是「一張卡片壓在一個工具上」。
+ */
 .tracking-screen {
-  align-items: flex-start; justify-content: flex-end;
+  align-items: center; justify-content: flex-end;
+  padding-bottom: var(--s5);
   background: transparent; pointer-events: none;
 }
 .tracking-gate {
-  width: min(27rem, calc(100vw - var(--s5)));
-  padding: var(--s4);
-  border: var(--hairline) solid var(--struct);
-  border-top-color: var(--me);
-  background: color-mix(in srgb, var(--void) 95%, transparent);
+  width: min(46rem, calc(100vw - 3rem));
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s3);
   pointer-events: auto;
 }
-.tracking-kicker {
-  margin: 0 0 var(--s2); color: var(--me);
-  font-size: var(--t-xs); letter-spacing: .16em;
+
+/* 狀態只有一行。字級拉到 --t-lg：這是全畫面唯一一句要人讀的話 */
+.tracking-status {
+  margin: 0; min-height: 1.5em;
+  color: var(--parchment);
+  font-size: var(--t-lg); line-height: 1.4; text-align: center;
 }
-.tracking-gate h1 { margin: 0; font-size: var(--t-xl); color: var(--parchment); text-align: left; }
-.tracking-copy { margin: var(--s2) 0 var(--s3); color: var(--struct-lit); line-height: 1.6; font-size: var(--t-sm); }
-.tracking-progress { display: flex; gap: var(--s2); margin-bottom: var(--s2); }
-.tracking-progress span {
-  flex: 1; padding: var(--s2);
+
+/* 兩個符文並排。字形本身就是說明 —— 玩家要畫的就是它 */
+.tracking-runes { display: flex; gap: var(--s3); width: 100%; }
+.tracking-rune {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: var(--s1);
+  padding: var(--s3) var(--s2);
   border: var(--hairline) solid var(--struct);
-  color: var(--dim); font-size: var(--t-sm);
+  background: color-mix(in srgb, var(--void) 82%, transparent);
 }
-.tracking-progress b { float: right; color: var(--dim); font-size: var(--t-xs); }
-.tracking-progress .passed { border-color: var(--me); color: var(--me-hot); }
-.tracking-progress .passed b { color: var(--me); }
-.tracking-status { min-height: 1.4em; margin: 0 0 var(--s3); color: var(--parchment); font-size: var(--t-sm); }
-.tracking-actions { display: flex; gap: var(--s2); }
-.tracking-actions .btn { flex: 1; font-size: var(--t-sm); }
+.tracking-rune b {
+  font-size: var(--t-xl); line-height: 1;
+  color: var(--dim); font-weight: 400;
+  transition: color var(--d-fast) var(--ease-out);
+}
+.tracking-rune i { font-style: normal; font-size: var(--t-sm); color: var(--struct-lit); }
+.tracking-rune em {
+  font-style: normal; font-size: var(--t-xs); letter-spacing: .12em;
+  color: var(--dim); font-family: var(--font-mono);
+}
+/* 通過就整格點亮 —— 顏色是唯一的差別會讓色盲讀不到，所以邊框也一起變 */
+.tracking-rune.passed { border-color: var(--me); }
+.tracking-rune.passed b,
+.tracking-rune.passed em { color: var(--me); }
+
+.tracking-actions { display: flex; gap: var(--s2); width: 100%; }
+.tracking-actions .btn { flex: 1; min-height: 2.75rem; font-size: var(--t-sm); }
+
+/* 筆尖狀態是中性回報，不是指令 —— lab 在 Step 0 會叫你把筆移出畫面，
+   這裡若喊「把筆舉起來」就會跟它打架。所以只說看不看得到。 */
+.tracking-tip {
+  margin: 0; display: flex; align-items: center; gap: var(--s2);
+  font-size: var(--t-xs); color: var(--dim); font-family: var(--font-mono);
+  letter-spacing: .08em;
+}
+.tracking-dot {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  /* --ash 對 --void 只有 1.73:1，非文字元件要 3:1（WCAG 1.4.11）——
+     一個看不見的指示燈等於沒有。--dim 是 5.01:1，仍然明顯暗於通過時的 --me。 */
+  background: var(--dim);
+  transition: background var(--d-fast) var(--ease-out);
+}
+.tracking-tip.live .tracking-dot { background: var(--me); }
+.tracking-tip.live { color: var(--struct-lit); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tracking-rune b, .tracking-dot { transition: none; }
+}
 
 /*
  * 首頁封面。

@@ -1,3 +1,20 @@
+/**
+ * 校準關卡　[Wesley]
+ *
+ * iframe 裡是 Ivan 的 WandFrame lab —— 那是**除錯工具**，不是給玩家看的。
+ * 它同時對玩家講十件事（錄影控制、event 契約、15 格 HUD…），只有三件跟玩家有關。
+ *
+ * lab 的 build 產物不在這個 repo，改不了它的原始碼。但 iframe 同源，
+ * 所以父層可以注入樣式，把雜訊關掉、只留 `.stage-wrap`（相機 + 校準指引 + 筆畫）。
+ *
+ * ⚠️ 誰下指令是刻意分工的：
+ *   `bridge.js` 只送 ready / frame / gesture，**不送「現在第幾步」** ——
+ *   所以逐步校準指引只有 lab 自己知道，必須留給它。
+ *   我們這塊面板只講 lab 講不了的事：符文的意思、整體進度、入口。
+ *   兩邊都下指令 = 玩家不知道要聽誰的，這就是原本最亂的地方。
+ *
+ * 加 `?debug=1` 會跳過注入，Ivan 的完整 lab 原封不動回來。
+ */
 import { makeScreen, register, show } from './index';
 import { clearExternalFrame, publishExternalFrame } from '../tracking/tracker';
 
@@ -13,27 +30,100 @@ type TrackingMessage = {
 let trackingFrame: HTMLIFrameElement | null = null;
 let trackingLoaded = false;
 
+const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+
+/** 從 tokens.css 讀值。iframe 沒有我們的 tokens，只能把值算好帶過去 —— 
+ *  來源仍然是同一份 token，改色票這裡會跟著變，沒有第二套真相。 */
+function tok(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/**
+ * 玩家模式。只做兩件事：關掉除錯介面、把舞台換成 RUNESPIRE 的顏色。
+ * 留下來的 `.stage-wrap` 內含相機、筆尖框、逐步指引與筆畫軌跡 —— 玩家需要的全在裡面。
+ * 下緣留 32vh 給我們自己的面板，所以舞台會往上坐。
+ */
+function playerModeCss(): string {
+  const void_ = tok('--void'), struct = tok('--struct'), ash = tok('--ash');
+  return `
+    body { background: transparent !important; }
+    .shell > header, .shell > .toolbar, .shell > .record-bar,
+    .shell > aside.hud, .shell > footer { display: none !important; }
+    /* #shape-test 與 #tip-state 的資訊我們自己用玩家的語言講一次，不要兩份 */
+    #shape-test, #tip-state { display: none !important; }
+    .shell {
+      width: min(46rem, calc(100vw - 3rem)) !important;
+      padding: 0 0 32vh !important;
+      min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
+    }
+    .stage-wrap {
+      height: min(44vh, 26rem) !important; min-height: 0 !important;
+      border-radius: 0 !important;
+      border-color: ${struct} !important;
+      background: ${void_} !important;
+    }
+    .recalibrate {
+      border-radius: 0 !important;
+      border-color: ${ash} !important;
+      background: ${void_} !important;
+    }
+  `;
+}
+
+/** iframe 同源才注得進去；跨源會丟例外，包起來不要讓校準頁整個掛掉 */
+function applyPlayerMode(frame: HTMLIFrameElement): void {
+  if (DEBUG) return;
+  try {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    const style = doc.createElement('style');
+    style.dataset.runespire = 'player-mode';
+    style.textContent = playerModeCss();
+    doc.head.appendChild(style);
+  } catch { /* 注不進去就維持 lab 原樣，至少還能校準 */ }
+}
+
 export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => void): void {
   const frame = document.createElement('iframe');
   frame.className = 'tracking-runtime parked';
   frame.title = 'Wand tracking calibration';
   frame.allow = 'camera';
+  frame.addEventListener('load', () => applyPlayerMode(frame));
   root.appendChild(frame);
   trackingFrame = frame;
 
   const el = makeScreen(root);
   el.classList.add('tracking-screen');
+  /*
+   * 面板刻意很少字。原本這裡有 kicker + 標題 + 一整句說明，
+   * 跟舞台裡 lab 自己的逐步指引打架 —— 同一個畫面兩套教學。
+   * 現在只留三樣：目前狀態一行、兩個符文的意思與進度、入口。
+   *
+   * 狀態那一行**只描述我們確定知道的事**，不下跟校準步驟有關的指令 ——
+   * lab 在 Step 0 會叫你把筆移出畫面，我們若同時喊「把筆舉起來」就是互相矛盾。
+   */
   el.innerHTML = `
     <section class="tracking-gate" aria-live="polite">
-      <p class="tracking-kicker">RUNESPIRE / TRACKING GATE</p>
-      <h1>Calibrate your wand</h1>
-      <p class="tracking-copy">先完成背景與筆尖校準，再各畫一次 Z 和 arc。Z 會施放攻擊，arc 會建立防禦。</p>
-      <div class="tracking-progress"><span data-shape="z">Z <b>WAIT</b></span><span data-shape="arc">ARC <b>WAIT</b></span></div>
-      <p class="tracking-status" data-status>正在等待追蹤器啟動…</p>
-      <div class="tracking-actions">
-        <button class="btn primary" data-enter disabled>進入遊戲</button>
-        <button class="btn" data-mouse>使用滑鼠模式測試</button>
+      <p class="tracking-status" data-status>正在啟動相機…</p>
+      <div class="tracking-runes">
+        <span class="tracking-rune" data-shape="z">
+          <b>Z</b>
+          <i>攻擊</i>
+          <em data-state>待畫</em>
+        </span>
+        <span class="tracking-rune" data-shape="arc">
+          <b>&#x2312;</b>
+          <i>防禦</i>
+          <em data-state>待畫</em>
+        </span>
       </div>
+      <div class="tracking-actions">
+        <button class="btn primary" data-enter disabled>進入決鬥</button>
+        <button class="btn" data-mouse>用滑鼠玩</button>
+      </div>
+      <p class="tracking-tip" data-tip>
+        <span class="tracking-dot" data-dot></span><span data-tiptext>尚未偵測到筆尖</span>
+      </p>
     </section>
   `;
   register('tracking', el);
@@ -41,27 +131,51 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
   const status = el.querySelector<HTMLElement>('[data-status]')!;
   const enter = el.querySelector<HTMLButtonElement>('[data-enter]')!;
   const mouse = el.querySelector<HTMLButtonElement>('[data-mouse]')!;
+  const tipRow = el.querySelector<HTMLElement>('[data-tip]')!;
+  const tipText = el.querySelector<HTMLElement>('[data-tiptext]')!;
   const passed = new Set<Shape>();
+  let ready = false;
+  let tipLive = false;
 
   const park = (): void => { frame.classList.add('parked'); };
-  const update = (message: string): void => { status.textContent = message; };
+
+  /** 狀態一行由進度推導，永遠只講「還差什麼」 */
+  function retell(): void {
+    if (!ready) { status.textContent = '正在啟動相機…'; return; }
+    if (passed.size === 0) { status.textContent = '依畫面完成校準，然後按住 Shift 畫一次 Z'; return; }
+    if (passed.size === 1) {
+      status.textContent = passed.has('z') ? '很好。再按住 Shift 畫一次 ⌒' : '很好。再按住 Shift 畫一次 Z';
+      return;
+    }
+    status.textContent = 'Z 與 ⌒ 都通過了，可以進場。';
+  }
+
+  /** 筆尖在不在。中性描述，不是指令 —— 見 tracking-tip 的樣式註解 */
+  function showTip(live: boolean): void {
+    if (live === tipLive) return;          // 每幀都進來，只在變化時碰 DOM
+    tipLive = live;
+    tipRow.classList.toggle('live', live);
+    tipText.textContent = live ? '筆尖偵測中' : '尚未偵測到筆尖';
+  }
+
   const onMessage = (event: MessageEvent<TrackingMessage>): void => {
     if (event.source !== frame.contentWindow || event.origin !== location.origin) return;
     const message = event.data;
     if (!message || message.source !== 'runespire-tracking') return;
-    if (message.type === 'ready') update('追蹤器已啟動，請依照畫面完成校準。');
-    if (message.type === 'frame' && message.frame) publishExternalFrame(message.frame);
+    if (message.type === 'ready') { ready = true; retell(); }
+    if (message.type === 'frame' && message.frame) {
+      publishExternalFrame(message.frame);
+      showTip(Boolean(message.frame.tip));
+    }
     if (message.type === 'gesture' && (message.shape === 'z' || message.shape === 'arc')) {
       passed.add(message.shape);
       const item = el.querySelector<HTMLElement>(`[data-shape="${message.shape}"]`);
       if (item) {
         item.classList.add('passed');
-        item.querySelector('b')!.textContent = `${Math.round((message.confidence ?? 0) * 100)}% PASS`;
+        item.querySelector('em')!.textContent = '通過';
       }
-      if (passed.size === 2) {
-        enter.disabled = false;
-        update('Z 與 arc 都已通過，可以進入遊戲。');
-      } else update(`${message.shape.toUpperCase()} 已辨識，請再完成另一個手勢。`);
+      if (passed.size === 2) enter.disabled = false;
+      retell();
     }
   };
   addEventListener('message', onMessage);
