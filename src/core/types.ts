@@ -8,20 +8,15 @@
 
 export type Role = 'host' | 'guest';
 export type Mode = 'solo' | 'host' | 'guest';
-export type Spell = 'bolt' | 'heavy';
+export type Spell = 'attack' | 'wall';   // △ 攻擊 · □ 建造
 
 // ─── 追蹤 ──────────────────────────────────────────
 export interface Vec2 { x: number; y: number; }
 
 export interface WandFrame {
-  /** 筆尖。已換算成「相對身體」的座標（0..1），不是相對畫面。tracking/ 負責換算 */
+  /** 筆尖，normalized 0..1，已水平鏡像 */
   tip: Vec2 | null;
   tipConfidence: number;   // 0..1
-  /** 頭部左右位移。−1 = 最左，0 = 正中，1 = 最右。這是唯一的移動輸入 */
-  head: number;
-  headConfidence: number;  // 0..1
-  /** 身體尺度（外眼角距離），用來正規化 tip。玩家坐遠坐近符文都不變形 */
-  bodyScale: number;
   source: 'mediapipe' | 'mouse';
   t: number;               // performance.now()
 }
@@ -29,16 +24,33 @@ export interface WandFrame {
 // ─── 對戰 ──────────────────────────────────────────
 export interface Duelist {
   id: string;
-  x: number;             // 0..1，由 head 推導
-  hp: number;
+  x: number;             // 0..1，由 A/D 推導
+  hp: number;            // 不回復，歸零即敗
+  mp: number;            // 自動回復，不夠不能施法
   casting: boolean;
   castProgress: number;  // 0..1，起手光暈半徑用
+}
+
+/**
+ * 遮蔽物。只蓋在建造者自己那一側。
+ *
+ * 三條規則，順序不要記錯：
+ *   1. 敵方攻擊打到我的牆 → 牆扣一次耐久（撐兩次），我不扣血
+ *   2. 我從自己的牆後面攻擊 → **穿過去，不被擋**
+ *      ← 這是蓋牆的誘因：同時防守 + 攻擊
+ *   3. 敵方前面有牆 → 我看不到他頭頂的血魔量
+ */
+export interface Cover {
+  id: number;
+  owner: Role;
+  x: number;             // 0..1，在 owner 自己那一側
+  hp: number;            // 耐久，起始 COVER_HP（2），歸零消失
+  bornAt: number;        // C4 超過上限時最舊的先崩解
 }
 
 export interface Projectile {
   id: number;
   owner: Role;
-  spell: Spell;
   fromX: number;
   /**
    * 發射當下鎖定的目標位置。之後不再追蹤對手。
@@ -53,6 +65,7 @@ export interface WireState {
   tick: number;
   host: Duelist;
   guest: Duelist;
+  covers: Cover[];
   projectiles: Projectile[];
   timeLeft: number;
   winner: Role | null;
@@ -62,7 +75,10 @@ export interface WireState {
 export interface MatchState {
   me: Duelist;
   them: Duelist;
+  covers: (Omit<Cover, 'owner'> & { side: 'me' | 'them' })[];
   projectiles: (Omit<Projectile, 'owner'> & { owner: 'me' | 'them' })[];
+  /** 對手前面有沒有牆。false → 他頭頂的血魔量顯示成 ???。純顯示，不影響規則 */
+  canSeeThemStats: boolean;
   timeLeft: number;
   winner: 'me' | 'them' | null;
 }
@@ -71,10 +87,14 @@ export interface MatchState {
 export function toLocalView(s: WireState, myRole: Role): MatchState {
   const other: Role = myRole === 'host' ? 'guest' : 'host';
   const side = (o: Role) => (o === myRole ? 'me' : 'them') as 'me' | 'them';
+  const them = s[other];
   return {
     me: s[myRole],
-    them: s[other],
+    them,
+    covers: s.covers.map(({ owner, ...c }) => ({ ...c, side: side(owner) })),
     projectiles: s.projectiles.map(({ owner, ...p }) => ({ ...p, owner: side(owner) })),
+    // 每個 client 自己算，不進 wire —— 兩邊算出來的結果本來就不同
+    canSeeThemStats: !s.covers.some((c) => c.owner === other && Math.abs(c.x - them.x) < 0.08),
     timeLeft: s.timeLeft,
     winner: s.winner === null ? null : side(s.winner),
   };

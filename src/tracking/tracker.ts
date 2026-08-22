@@ -14,11 +14,7 @@ export interface TipSource {
   dispose(): void;
 }
 
-const IDLE: WandFrame = {
-  tip: null, tipConfidence: 0,
-  head: 0, headConfidence: 0,
-  bodyScale: 0.25, source: 'mouse', t: 0,
-};
+const IDLE: WandFrame = { tip: null, tipConfidence: 0, source: 'mouse', t: 0 };
 
 let current: TipSource | null = null;
 
@@ -30,7 +26,7 @@ export async function setSource(kind: WandFrame['source']): Promise<void> {
       current = createMouseSource();
       break;
     case 'mediapipe':
-      // TODO [Ivan, H+8]：handSource + faceSource + 融合，見 frontend/PLAN.md §4.1
+      // TODO [Ivan, 13:00]：handSource，見 frontend/PLAN.md §4.1
       console.warn('[tracker] mediapipe 尚未實作，退回 mouse');
       current = createMouseSource();
       break;

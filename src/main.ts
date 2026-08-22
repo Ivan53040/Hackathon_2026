@@ -1,12 +1,13 @@
 /**
- * 啟動與串接　[擁有者：E]
+ * 啟動與串接　[擁有者：P1]
  *
- * v5 骨架：只做兩件事 —— 起 60Hz 迴圈、把 WandFrame 畫出來。
- * 這樣 M0 就能驗收（移動滑鼠 → console 有 WandFrame）。
+ * 骨架只做三件事：起 60Hz 迴圈、讀輸入、把狀態畫出來。
+ * A/D 走位、滑鼠當筆尖、按住 Shift 起手。
  * 其他模組接進來的位置都標了 TODO。
  */
 import { CONFIG } from './core/config';
 import { EV, emit } from './core/bus';
+import { initInput, getMoveAxis, isCasting } from './core/input';
 import { getFrame, setSource, currentKind } from './tracking/tracker';
 import type { WandFrame } from './core/types';
 
@@ -40,17 +41,21 @@ addEventListener('keydown', (e) => {
 
 // ── 主迴圈：60Hz，CV 自己跑 30Hz ─────────────────
 let last = performance.now();
+let x = 0.5;                       // 我的位置，0..1
 function loop(now: number) {
   const dt = Math.min((now - last) / 1000, 0.25);
   last = now;
 
+  // 走位：無慣性無加速度。身體怎麼按，角色就怎麼動
+  // TODO [P2]：搬進 match/duelist.ts
+  x = Math.min(Math.max(x + getMoveAxis() * CONFIG.MOVE_SPEED * dt, 0), 1);
+
   const f = getFrame();
   emit(EV.WAND_FRAME, f);
 
-  // TODO [B]  segmenter.update(f)
-  // TODO [C]  match.tick(dt, f)
-  // TODO [D]  view.render(matchState, dt)
-  void dt;
+  // TODO [P1]  initRunes() 自己監聽 Shift 與 tip，不用在這裡呼叫
+  // TODO [P2]  const s = tickMatch(dt);
+  // TODO [P3]  renderView(s, f, dt);
 
   draw(f);
 
@@ -73,9 +78,12 @@ function draw(f: WandFrame) {
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, h * 0.72); ctx.lineTo(w, h * 0.72); ctx.stroke();
 
-  const x = Math.min(Math.max((f.head * CONFIG.HEAD_TO_X_GAIN + 1) / 2, 0), 1);
   ctx.fillStyle = me;
   ctx.fillRect(x * w - 3, h * 0.72 - 40, 6, 40);
+  if (isCasting()) {                      // 起手：腳下光環
+    ctx.strokeStyle = me; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x * w, h * 0.72, 34, 9, 0, 0, Math.PI * 2); ctx.stroke();
+  }
 
   if (f.tip) {
     ctx.beginPath();
@@ -89,17 +97,18 @@ function draw(f: WandFrame) {
     const lines = [
       `source   ${currentKind() ?? '-'}`,
       `game fps ${gameFps.toFixed(0)}`,
-      `head     ${f.head.toFixed(3)}  → x ${x.toFixed(3)}`,
+      `x        ${x.toFixed(3)}   axis ${getMoveAxis()}`,
       `tip      ${f.tip ? `${f.tip.x.toFixed(3)}, ${f.tip.y.toFixed(3)}` : 'null'}`,
-      `conf     tip ${f.tipConfidence.toFixed(2)}  head ${f.headConfidence.toFixed(2)}`,
-      `~ HUD   1 mediapipe   2/M mouse`,
+      `casting  ${isCasting()}   conf ${f.tipConfidence.toFixed(2)}`,
+      `A/D 走位  Shift 起手  ~ HUD  1 webcam  2/M mouse`,
     ];
     lines.forEach((l, i) => ctx.fillText(l, 12, 20 + i * 15));
   }
 }
 
 // ── 啟動 ────────────────────────────────────────
+initInput();
 await setSource('mouse');
-console.info('[runespire] v5 skeleton. 移動滑鼠應該看到 WandFrame：');
+console.info('[runespire] 骨架就緒。A/D 走位、滑鼠當筆尖、按住 Shift 起手。');
 setInterval(() => console.log(getFrame()), 2000);   // TODO [E]：M0 驗收完就刪掉
 requestAnimationFrame(loop);

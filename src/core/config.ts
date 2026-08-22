@@ -8,15 +8,12 @@
 
 export const CONFIG = {
   // ── Tracking [Ivan] ───────────────────────────
-  TIP_EXTEND: 0.055,            // 筆尖外推距離，相對 bodyScale
+  TIP_EXTEND: 0.055,            // 筆尖外推距離，normalized 畫面比例
   ONE_EURO_MIN_CUTOFF: 1.0,
   ONE_EURO_BETA: 0.007,
-  HEAD_MIN_CUTOFF: 0.4,         // head 要更重的平滑 —— 頭抖會直接變成畫面暈眩
-  HEAD_BETA: 0.002,
   LOST_FRAMES: 5,
   WEBCAM_W: 640, WEBCAM_H: 480, // 不要開 720p
   CV_HZ: 30,
-  FACE_HZ: 30,                  // 掉幀時先把這個降到 15
 
   // ── Runes [B] ─────────────────────────────────
   CAST_THRESHOLD: 0.80,
@@ -24,16 +21,25 @@ export const CONFIG = {
   MIN_STROKE_POINTS: 8,
   MAX_STROKE_MS: 4000,
   RESAMPLE_N: 64,
-  CORNER_ANGLE_DEG: 55,         // 角點判定：3 角 → △，5 角 → ⬠
+  CORNER_ANGLE_DEG: 55,         // 角點判定：3 角 → △ 攻擊，4 角 → □ 建造
 
-  // ── Match [C] ─────────────────────────────────
+  // ── Match [P2] ────────────────────────────────
   HP_MAX: 10,
-  DMG_BOLT: 1,
-  DMG_HEAVY: 3,
-  PROJ_MS: { bolt: 700, heavy: 1100 },
-  HIT_WIDTH: { bolt: 0.09, heavy: 0.17 },  // 重擊難躲就是靠這個數字
-  HEAD_TO_X_GAIN: 1.6,          // head(−1..1) → x(0..1) 的放大倍率
+  DMG_ATTACK: 2,
+  PROJ_MS: 800,                 // 投射物飛行時間
+  HIT_WIDTH: 0.10,              // 命中判定寬度。太窄玩家會覺得「明明中了」
+  MOVE_SPEED: 0.55,             // 每秒走過畫面寬度的比例。無慣性無加速度
   MATCH_TIME_S: 90,
+
+  // ── 魔量與遮蔽物 [P2] ─────────────────────────
+  MP_MAX: 100,
+  MP_REGEN_PER_S: 14,           // 約 7 秒回滿
+  COST: { attack: 25, wall: 45 },   // 蓋牆貴，蓋完一時打不出去
+  COVER_HP: 2,                  // 承受兩次攻擊才消失
+  COVER_MAX: 2,                 // 每人最多幾面，超過最舊的崩解
+  COVER_OFFSET: 0.10,           // 蓋在自己前方多遠
+  COVER_BLOCK_W: 0.09,          // 牆的擋彈寬度
+  COVER_HIDE_W: 0.08,           // 擋住頭頂數值的寬度
   BOT_REACT_MS: { apprentice: 9999, warlock: 400, archmage: 220 },
 
   // ── Net [E] ───────────────────────────────────

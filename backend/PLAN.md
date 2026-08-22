@@ -1,16 +1,15 @@
 # RUNESPIRE — 後端開發計劃 (BACKEND PLAN)
 
-> **v5 — 第一人稱 + 臉部追蹤。** 這份文件涵蓋**伺服器、網路協定、部署**。
+> **v6 — 回歸原始構想（遮蔽物 + 魔量）。** 這份文件涵蓋**伺服器、網路協定、部署**。
 > 瀏覽器端請看 [`../frontend/PLAN.md`](../frontend/PLAN.md)。
 > 執行用打勾清單在 [`CHECKLIST.md`](./CHECKLIST.md)。
 > 設計決策見 [`../.design/`](../.design/)。
 >
 > **擁有者：E。預估 ~350 行 + 部署，一個人 5 小時。**
 >
-> **v4 → v5：協定又變小了，伺服器程式碼依然一行都不用改。**
-> 再刪掉：`covers[]` 整個陣列 · `mp` · `alive`（改成 `hp<=0` 推導）。
-> 法術改名：`attack`/`wall` → **`bolt` / `heavy`**。
-> 新增：`Projectile.fromX` / `toX`（發射當下鎖定目標位置，這就是「閃得掉」的實作）。
+> **v5 → v6：`covers[]` 與 `mp` 加回來，伺服器程式碼依然一行都不用改。**
+> `spell` 白名單：**`attack` / `wall`**（不是 bolt/heavy）。
+> `Projectile` 帶 `fromX` / `toX`（發射當下鎖定目標位置 —— 這就是「閃得掉」的實作）。
 >
 > ⚠️ **E 唯一要動的是 `protocol.ts` 的驗證白名單。**
 > 照舊版寫下去，**會擋掉前端送的合法訊息**——這是唯一會出事的地方。
@@ -30,7 +29,7 @@
 ### 伺服器**不**做什麼
 - ❌ 不做符文辨識
 - ❌ 不做遊戲模擬 / 命中判定
-- ❌ **不做命中判定、不算任何遊戲數值**
+- ❌ **不做命中判定、不做遮蔽物判定、不算魔量**
 - ❌ 不存資料庫
 - ❌ 不做帳號、登入、密碼
 - ❌ 不用 Docker、不用 Redis、不用 ORM
@@ -173,8 +172,8 @@ client 連上 /ws/FLUX?playerId=p_ab12de
   "casting":true, "castProgress":0.6 }
 
 // ── client → server，事件觸發 ──────────────────
-// ★ v5：spell 改名 bolt / heavy
-{ "type":"cast", "spell":"bolt"|"heavy", "score":0.91, "durationMs":1180 }
+// ★ v6：spell 是 attack / wall
+{ "type":"cast", "spell":"attack"|"wall", "score":0.91, "durationMs":1180 }
 { "type":"rematch" }
 
 // ── host → server → guest，15Hz ────────────────
@@ -183,8 +182,7 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 { "type":"state", "tick":812, "ackSeq":810,
   "host":  { "id":"h0","x":0.30,"hp":10,"casting":false,"castProgress":0 },
   "guest": { "id":"g0","x":0.70,"hp":7, "casting":true, "castProgress":0.4 },
-  "projectiles":[ { "id":41,"owner":"host","spell":"bolt",
-                    "fromX":0.30,"toX":0.68,"progress":0.4 } ],
+  "projectiles":[ { "id":41,"owner":"host","fromX":0.30,"toX":0.68,"progress":0.4 } ],
   "timeLeft":47, "winner":null }
 
 // ── 雙向 ───────────────────────────────────────
@@ -198,8 +196,9 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 一旦用它當 wire 格式，guest 端的血量會互換、投射物方向會反、左右場地會顛倒，
 而且症狀長得像「渲染 bug」，你會在 D 的資料夾裡 debug 兩小時，錯的地方在 `net/`。
 
-**★ v5 讓這件事在第一人稱下更難 debug。**
-`projectiles[].owner` 反了的話，guest 端會**看到自己發射的火球朝自己飛過來**。
+**★ v6 有兩個 `owner`：`projectiles[].owner` 與 `covers[].owner`。**
+`projectiles[].owner` 反了 → guest 端會**看到自己發射的火球朝自己飛過來**。
+`covers[].owner` 反了 → **敵人的牆保護我、我的牆擋住敵人**，規則整個反過來。
 在第三人稱那是一眼看得出的 bug，在第一人稱它看起來只是「火球方向怪怪的」，
 你會先去懷疑 `view/camera.ts`，錯的地方在 `net/`。
 
@@ -211,7 +210,7 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 - guest 送 `input` + `cast`，本地做插值與立即的 VFX 預測（拖尾、法陣），
   但 **HP 與命中一律以 host 的 `state` 為準**
 - **命中判定 100% 由 host 決定**
-- **★ v5：命中判定看的是 `toX`（發射當下鎖定的位置），不是對手現在的位置。**
+- **★ 命中判定看的是 `toX`（發射當下鎖定的位置），不是對手現在的位置。**
   所以 host 算命中時要用 `projectile.toX` 對比 `them.x`——**這就是閃避成立的原因**
 - 不用 rollback、不用 lockstep、不用預測回滾
 
@@ -233,8 +232,8 @@ client 連上 /ws/FLUX?playerId=p_ab12de
 **伺服器不看 `spell` 是什麼，不看 `hp` 合不合理，不看誰打中誰。**
 
 ### 5.6 訊息大小（v5 又更小）
-`state`：2 個 duelist × 5 欄位 + 投射物。
-粗估 **~200–300 bytes**，遠低於 `maxPayload: 16KB`。**要親眼確認一次：**
+`state`：2 個 duelist × 6 欄位 + 最多 4 面牆 + 投射物。
+粗估 **~350–500 bytes**，遠低於 `maxPayload: 16KB`。**要親眼確認一次：**
 ```bash
 # 在 host 端 console 印一次
 console.log(JSON.stringify(state).length);
@@ -258,7 +257,7 @@ console.log(JSON.stringify(state).length);
 畫面出現「對手失去連線 — 由幻影接管」
    ↓
 RemoteOpponent 就地換成 BotOpponent（術士難度），
-繼承當前 HP / 位置 `x` / 場上所有投射物
+繼承當前 HP / MP / 位置 `x` / **場上所有遮蔽物**
    ↓
 比賽繼續，不中斷
 ```
@@ -268,7 +267,7 @@ guest 端**從來沒有跑過權威模擬**——它一直在等 `state`。host 
 
 **必做：guest 收到 `peerLeft` 時執行「自我提升」：**
 ```
-1. 用最後一份 state 當作初始狀態（含 HP、x、場上投射物）
+1. 用最後一份 state 當作初始狀態（含 HP、MP、x、**covers**、投射物）
 2. mode: 'guest' → 'solo'，本地開始跑權威模擬
 3. them 換成 BotOpponent(warlock)，繼承 HP / x
 5. 之後不再等任何網路訊息
@@ -291,24 +290,25 @@ guest 離線時 host 只要 §6.2 就夠了。**兩條路徑都要在 M3 測到�
 ```jsonc
 POST /api/telemetry
 { "events":[
-  { "t":1724200000000, "spell":"heavy", "score":0.88, "ok":true,
+  { "t":1724200000000, "spell":"wall", "score":0.88, "ok":true,
     "source":"mediapipe", "durationMs":1180, "session":"s_x9f2" },
   // ★ 魔量不足導致的失敗要分開記，不能算進辨識率
-  { "t":1724200003000, "spell":"bolt", "score":0.41, "ok":false,
-    "reason":"low-score", "source":"mediapipe", "durationMs":900, "session":"s_x9f2" }
+  { "t":1724200003000, "spell":"attack", "score":0.93, "ok":false,
+    "reason":"no-mana", "source":"mediapipe", "durationMs":900, "session":"s_x9f2" }
 ]}
 ```
-> ★ **v5 沒有魔量了，所有失敗都是辨識失敗，全部列入分母。**
-> 反而要記 `source`——滑鼠模式的成功率會遠高於 webcam，混在一起會**高估**自己。
-> **台上報數字時要說清楚是 webcam 模式的數字。**
+> ★ **`reason:"no-mana"` 的事件不列入辨識率分母。**
+> 那是玩家沒魔力，不是我們認不出來。混在一起會**低估**自己的辨識率。
+> 另外要分 `source`——滑鼠模式成功率遠高於 webcam，混在一起會**高估**。
+> **台上報數字時說清楚是 webcam 模式的數字。**
 
 **伺服器**：append 到 `data/telemetry.jsonl`（純檔案，不要資料庫）。
 
 ```jsonc
 GET /api/telemetry/summary
 { "total":612, "ok":541, "recognitionRate":0.883,
-  "bySpell":{ "bolt":{"n":390,"rate":0.91},
-              "heavy":{"n":222,"rate":0.86} },
+  "bySpell":{ "attack":{"n":390,"rate":0.91},
+              "wall":{"n":222,"rate":0.86} },
   "bySource":{ "mediapipe":0.87, "hsv":0.93, "mouse":0.98 } }
 ```
 > ⚠️ 部署平台的檔案系統多半是暫時性的（重啟就沒了）。

@@ -12,7 +12,11 @@ export const EV = {
   SPELL_FIRED:  'match:fired',
   SPELL_HIT:    'match:hit',
   NEAR_MISS:    'match:nearMiss',   // 打空 —— 玩家必須知道自己閃掉了
+  COVER_BUILT:  'match:coverBuilt',
+  COVER_HIT:    'match:coverHit',   // 牆扣耐久，帶 { id, hpLeft }
+  NO_MANA:      'match:noMana',     // 跟「畫壞了」要有不同的視覺
   HP_CHANGE:    'match:hp',
+  MP_CHANGE:    'match:mp',
   MATCH_START:  'match:start',
   MATCH_OVER:   'match:over',
   NET_STATE:    'net:state',

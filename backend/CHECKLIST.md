@@ -1,6 +1,6 @@
 # 後端執行清單 (BACKEND CHECKLIST)
 
-> **v5 — 第一人稱 + 臉部追蹤。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
+> **v6 — 遮蔽物 + 魔量回歸。** 擁有者：**E**。詳細規格看 [`PLAN.md`](./PLAN.md)。
 > 後端不是關鍵路徑，**但它的失敗是致命的**。早做完，早部署，然後把時間拿去幫整合。
 >
 > **★ = v5 新增/變更。**
@@ -12,10 +12,10 @@
 ## H+0 → H+1　契約
 
 - [ ] 跟前端一起逐行唸 `src/core/types.ts`
-- [ ] ★ 確認 v5 欄位：**`x` / `hp` / `casting` / `castProgress`**，投射物帶 **`fromX` / `toX` / `spell`**
+- [ ] ★ 確認 v6 欄位：**`x` / `hp` / `mp` / `casting` / `castProgress`** + **`covers[]`**，投射物帶 **`fromX` / `toX`**
 - [ ] 🔴 ★ 確認舊欄位**已從白名單刪掉**：`floor` `pitch` `targetFloor` `shieldUntil` `fromFloor` `toFloor` `covers[]` `mp` `alive`
 - [ ] ★ 確認 `state.host` / `state.guest` 是**單一物件**（v5 拿掉陣列，只做 1v1）
-- [ ] 🔴 ★ 確認 `spell` 白名單只有 **`bolt` / `heavy`**
+- [ ] 🔴 ★ 確認 `spell` 白名單只有 **`attack` / `wall`**
       （**規格已改四次，這一條每次都要重看**。寫錯不會 crash，但會安靜地擋掉合法訊息）
 - [ ] ★ 確認舊的 `aim: 'up'|'level'|'down'` **已從協定移除**，不要留兩套
 - [ ] 🔴 確認 wire 格式用 **`host`/`guest`** 不用 `me`/`them`（[PLAN.md §5.3](./PLAN.md)）
@@ -173,11 +173,12 @@
 | B8 | 5 分鐘 loadtest 記憶體不漲、空房被 GC | ☐ |
 | B9 | `/api/telemetry/summary` 數字可貼投影片（★ 已排除 `no-mana`） | ☐ |
 | B10 | 送壞 JSON 不 crash | ☐ |
-| ★ B11 | `projectiles` 完整轉發，host 開火 guest 0.2 秒內看到 | ☐ |
+| ★ B11 | `projectiles` 與 `covers` 完整轉發，host 蓋牆 guest 0.2 秒內看到 | ☐ |
 | ★ B12 | guest 端：**自己發射的火球朝對手飛，不是朝自己** | ☐ |
 | ★ B13 | 場上有投射物時 host 離線 → guest 自我提升後火球還在、還會命中 | ☐ |
 | ★ B14 | 送 `projectiles` 長度 100 → 被擋掉，不 crash、對方不卡死 | ☐ |
-| ★ B15 | **閃避手感**：guest 側身後，near-miss 特效有播，且 HP 沒被扣 | ☐ |
+| ★ B15 | **閃避手感**：guest 按 A/D 後 near-miss 有播且 HP 沒扣 | ☐ |
+| ★ B16 | **`covers` owner 方向正確**：guest 蓋的牆保護 guest，且 guest 從牆後開火穿得過去 | ☐ |
 
 ---
 
