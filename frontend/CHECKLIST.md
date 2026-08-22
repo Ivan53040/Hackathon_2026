@@ -1,9 +1,14 @@
 # 前端執行清單 (FRONTEND CHECKLIST)
 
-> **v5.1 — 第一人稱 + 手部追蹤。走位是 A/D。** 印出來貼在牆上，每個 Block 結束時全隊站著唸一次。
+> **v6 — 第一人稱 + 手部追蹤 + 遮蔽物 + 魔量。走位是 A/D。** 印出來貼在牆上。
 > 規格 [`PLAN.md`](./PLAN.md) · 分工 [`WORKSPLIT.md`](./WORKSPLIT.md) · 動畫 [`ANIMATION.md`](./ANIMATION.md)
 >
-> **★ = v5 新增。v5 砍掉：樓層 · 牆 · MP · 瞄準 · 走位鍵 · 第三人稱。**
+> **★ = 相對 v5 的差異。⚠️ v5 曾經砍掉「牆」與「MP」，v6 已經把兩個都加回來了** ——
+> 舊表頭寫成「v5 砍掉 牆 · MP」，跟 `PLAN.md` v6 和實際的 code 相反，已更正。
+>
+> 🕐 **時程以 [`WORKSPLIT.md`](./WORKSPLIT.md) 的時鐘為準**（13:00 / 14:00 / … / 08:24 上台）。
+> 下面的 `H+` 區塊是 36 小時版留下來的，**只當「做完沒」的清單用，不要照它排睡覺時間**
+> （真正的睡覺班表在 WORKSPLIT §5）。
 
 ---
 
@@ -15,6 +20,8 @@
 - [ ] ★ 確認**投射物發射當下鎖定 `toX`，之後不追蹤** ← 這是「閃得掉」的實作
 - [ ] **E** 推 repo 骨架：vite + TS + three、`types.ts`、`bus.ts`、`config.ts`、`CLAUDE.md`
 - [ ] 每個人 `npm i && npm run dev` 跑得起來
+      ⚠️ `vite-plugin-mkcert` **第一次會要 sudo 密碼**（裝本機 CA）。在自己的終端機跑、輸入密碼就過；
+      在不能輸密碼的環境（CI／代跑）會直接起不來
 - [ ] 五條 branch：`ivan/tracking` `b/runes` `c/match` `d/view` `e/core`
 - [ ] **Ivan** 交付 `mouseSource.ts`（滑鼠 x → `head`）
 - [ ] 讀 [`../rules.md`](../rules.md)：**AI 不准 commit / push**
@@ -32,17 +39,17 @@
 - [ ] CV 30Hz 與遊戲 60Hz 分離（**CV 不准在 rAF 裡跑**）
 - [ ] `oneEuro.ts` 平滑上線
 
-### B · runes
-- [ ] $1 Recognizer（resample / rotate / scale / translate / distanceAtBestAngle）
-- [ ] ★ 角點數前置判斷：`3 角 → △ 攻擊`、`4 角 → □ 建造`
-- [ ] `segmenter.ts`（`e.repeat` 擋重複、`window.blur` 保險）
-- [ ] `performance.now()` 確認判定 <5ms
+### B · runes　→ **Bill 已交付**（`src/runes/`）
+- [x] $1 Recognizer（resample / rotate / scale / translate / distanceAtBestAngle）
+- [x] ★ 角點數前置判斷：`3 角 → △ 攻擊`、`4 角 → □ 建造`
+- [x] `segmenter.ts`（`e.repeat` 擋重複、`window.blur` 保險）
+- [x] `performance.now()` 確認判定 <5ms　→ **實測 median 0.31ms · p95 0.38ms**
 
-### C · match
-- [ ] ★ `x` 由 `getMoveAxis()` 驅動，**無慣性無加速度**
-- [ ] `attack` + 投射物 + 命中判定（**比對 `toX`**）+ MP 扣除與回復
-- [ ] **學徒 bot**
-- [ ] 固定步長模擬迴圈（accumulator）
+### C · match　→ **Bill 已交付**（`src/match/`）
+- [x] ★ `x` 由 `getMoveAxis()` 驅動，**無慣性無加速度**
+- [x] `attack` + 投射物 + 命中判定（**比對 `toX`**）+ MP 扣除與回復
+- [x] **學徒 bot**
+- [x] 固定步長模擬迴圈（accumulator, 1/60）
 
 ### D · view
 - [ ] 🔴 **`ui/tokens.css` 第一版 — H+3 前交付，E 與 B 在等**
@@ -77,10 +84,12 @@
 - [ ] 每符文 ≥8 樣本，**至少 2 個不同的人**錄
 - [ ] 調 `CAST_THRESHOLD`
 
-### C
-- [ ] 🔴 **遮蔽物 C1–C5**：擋攻擊、撐兩次、**從自己牆後開火要穿得過去**
-- [ ] 術士 bot（看到起手就側移閃避）
-- [ ] 勝負判定 + 時限
+### C　→ **Bill 已交付**
+- [x] 🔴 **遮蔽物 C1–C5**：擋攻擊、撐兩次、**從自己牆後開火要穿得過去**
+- [x] 術士 bot
+      ⚠️ 它是**看到火球才閃**，不是「看到起手就閃」—— 起手時閃沒有用，
+      `toX` 是放開 Shift 那一刻才鎖定的，先閃只是換一條線被鎖
+- [x] 勝負判定 + 時限（`MATCH_TIME_S` 到 → HP 高者勝）
 
 ### D
 - [ ] 🔴 ★ 頭部視差 A8 —— **花一小時實測阻尼，太快會暈太慢沒感覺**
@@ -122,9 +131,12 @@
 - [ ] 教學頁三步驟（偵測到手臉 → 試畫一次三角形 → 進場）
 - [ ] 每個符文測 20 次，**數據寫下來**，目標 85%
 - [ ] ★ **△ 與 □ 互相誤判 <5%**
+      現況：程式生成的軌跡（含雜訊）0% 誤判，但**還沒有真人畫過**。
+      18:00 拿到 webcam template 之後才算數
 
 ### C
-- [ ] 大法師 bot（提前側移、抓畫完的空檔反擊）
+- [x] 大法師 bot　→ 照 [`WORKSPLIT.md`](./WORKSPLIT.md) 20:00 的描述做：**蓋牆 → 從牆後開火 → 牆破了再蓋**
+      （這一行原本寫的「抓畫完的空檔反擊」是 v5 的描述，v6 沒有施法定身，沒有空檔可抓）
 - [ ] `remoteOpponent.ts` + 斷線降級 bot（**兩個方向都要測**）
 - [ ] 平衡：傷害、繪製時間、`HIT_WIDTH`、bot 反應
 
