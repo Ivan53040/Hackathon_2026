@@ -39,6 +39,8 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
         Hold <b>Shift</b> and draw the rune in the air with your wand.<br>
         <b>A</b> / <b>D</b> to step left and right.
       </p>
+      <!-- 手機玩不了（要 webcam + 筆 + A/D 鍵盤）。與其假裝支援，不如講清楚 -->
+      <p class="note desktop-only">Needs a desktop browser with a webcam.</p>
     </div>
   `;
   register('landing', el);
