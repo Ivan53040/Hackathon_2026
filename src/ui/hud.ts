@@ -108,10 +108,17 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: MatchState): void {
   ctx.globalAlpha = 1;
 
   // ── 時間：小、低對比。時限只是保險，不是主要玩法 ──
+  // 大小與顏色維持原樣（那是刻意的），但要給它一塊襯底 ——
+  // 場館海報就掛在正上方，低對比的字壓在畫的亮部上會整個消失。
+  const clock = `${Math.floor(s.timeLeft / 60)}:${String(Math.floor(s.timeLeft % 60)).padStart(2, '0')}`;
   ctx.font = `13px ${mono}`;
-  ctx.fillStyle = dim;
   ctx.textAlign = 'center';
-  const m = Math.floor(s.timeLeft / 60), sec = Math.floor(s.timeLeft % 60);
-  ctx.fillText(`${m}:${String(sec).padStart(2, '0')}`, w / 2, 34);
+  const clockW = ctx.measureText(clock).width + 18;
+  ctx.globalAlpha = 0.72;
+  ctx.fillStyle = voidC;
+  ctx.fillRect(w / 2 - clockW / 2, 20, clockW, 20);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = dim;
+  ctx.fillText(clock, w / 2, 34);
   ctx.textAlign = 'left';
 }

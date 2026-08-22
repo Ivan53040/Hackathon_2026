@@ -268,6 +268,48 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
     return { light, flame, core, pool, phase: index * 1.37 };
   });
 
+  /*
+   * 場館海報。真的競技場牆上就是掛這種東西 —— 它讓這裡看起來像「有在辦比賽的場地」，
+   * 而不是一個空的場景。用的就是首頁那張 key art，兩邊視覺因此對得上。
+   *
+   * 位置是算過的：對手在 z=-7.5、頭頂約 y=2.6；海報下緣 y=3.75，中間空一整個身高。
+   * 材質用 MeshBasicMaterial 不吃光照，但**壓到 62%** —— 對手是深藍剪影，
+   * 背後放一張全亮的畫會把他吃掉。海報是背景，不是主角。
+   */
+  // 尺寸是解出來的，不是試出來的：
+  //   對手頭頂 (y=2.6, z=-7.5) 的畫面比例 = (2.6-1.6)/7.5 = 0.133
+  //   FOV 55° 的可視上緣比例 = tan(27.5°) = 0.521
+  //   海報連吊桿必須整個落在 0.157 ~ 0.490 之間 —— 高過人頭，又不被畫面切掉
+  const POSTER_W = 7.2, POSTER_H = 4.05, POSTER_Y = 5.8, POSTER_Z = -13;
+  new THREE.TextureLoader().load('/cover.jpg', (tex) => {
+    if (!root || generation !== loadGeneration) { tex.dispose(); return; }
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const poster = new THREE.Mesh(
+      new THREE.PlaneGeometry(POSTER_W, POSTER_H),
+      new THREE.MeshBasicMaterial({ map: tex, color: 0x9e9e9e, fog: false, toneMapped: false }),
+    );
+    poster.name = 'arena-poster';
+    poster.position.set(0, POSTER_Y, POSTER_Z);
+    root.add(poster);
+
+    // 外框與吊桿：沒有實體支撐的話它會像貼在空中的貼紙
+    const trim = new THREE.Mesh(
+      new THREE.PlaneGeometry(POSTER_W + 0.34, POSTER_H + 0.34),
+      new THREE.MeshBasicMaterial({ color: tok('--ash'), fog: false }),
+    );
+    trim.position.set(0, POSTER_Y, POSTER_Z - 0.04);
+    root.add(trim);
+
+    const barGeo = new THREE.CylinderGeometry(0.07, 0.07, POSTER_W + 1.1, 8);
+    const barMat = new THREE.MeshBasicMaterial({ color: tok('--me'), fog: false });
+    for (const y of [POSTER_Y + POSTER_H / 2 + 0.14, POSTER_Y - POSTER_H / 2 - 0.14]) {
+      const bar = new THREE.Mesh(barGeo, barMat);
+      bar.rotation.z = Math.PI / 2;
+      bar.position.set(0, y, POSTER_Z - 0.02);
+      root.add(bar);
+    }
+  }, undefined, () => { /* 海報載不到不影響遊戲 */ });
+
   new GLTFLoader().load('/models/roman_arena.glb', (gltf) => {
     if (!root || generation !== loadGeneration) {
       disposeObject(gltf.scene);
