@@ -17,10 +17,10 @@ import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
 import { drawHud } from '../ui/hud';
 import { LANE_WIDTH } from './camera';
-import { disposeWebcamPip, initWebcamPip } from './pip';
+import { disposeWebcamPip, initWebcamPip, pauseWebcamPip, touchWebcamPip } from './pip';
 import { RuneEffects } from './runeEffects';
 import type { MatchState, WandFrame } from '../core/types';
-import type { SpellHit } from '../match/events';
+import type { CoverHit, NearMiss, SpellHit } from '../match/events';
 
 const HIT_FLASH_S = 0.3;
 const TRACER_LAYERS = [[9, 0.14], [4, 0.4], [1.5, 0.85]] as const;
@@ -33,6 +33,7 @@ let arena: ArenaRefs;
 let runeEffects: RuneEffects;
 let clock = 0;
 let overlay: HTMLCanvasElement;
+let glCanvas: HTMLCanvasElement | null = null;
 let ctx: CanvasRenderingContext2D;
 let offs: (() => void)[] = [];
 const namePos = new THREE.Vector3();
@@ -77,6 +78,7 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   buildHitVignette();
 
   const gl = document.createElement('canvas');
+  glCanvas = gl;
   gl.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
   overlay.parentElement!.insertBefore(gl, overlay);   // 3D 在 2D 底下
   initWebcamPip(overlay.parentElement!);
@@ -100,8 +102,15 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
       hitFlash = HIT_FLASH_S;
     }
   }));
-  offs.push(on(EV.NEAR_MISS, () => fps.shake(0.35)));   // 打空也要有回饋，否則玩家不知道自己閃掉了
-  offs.push(on(EV.COVER_HIT, () => fps.shake(0.5)));
+  offs.push(on(EV.NEAR_MISS, (raw) => {
+    // 只有閃掉迎面而來的攻擊才震動；我方火球打空不該像自己被打。
+    // mockMatch 的舊 payload 沒有 owner，但它只模擬迎面攻擊，因此也算 incoming。
+    if ((raw as NearMiss).owner !== 'me') fps.shake(0.35);
+  }));
+  offs.push(on(EV.COVER_HIT, (raw) => {
+    // 對方牆受擊由碎塊回饋；只有我方牆挨打才傳到第一人稱相機。
+    if ((raw as CoverHit).side === 'me') fps.shake(0.5);
+  }));
 }
 
 function onResize(): void {
@@ -112,6 +121,8 @@ function onResize(): void {
 
 export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   if (!renderer) return;
+  if (s.winner === null) touchWebcamPip();
+  else pauseWebcamPip();
   clock += dt;
   fps.update(s.me.x, dt);
   actors.update(s, dt);
@@ -220,9 +231,35 @@ export function disposeView(): void {
   offs.forEach((f) => f());
   offs = [];
   removeEventListener('resize', onResize);
-  renderer?.dispose();
-  renderer = null;
   actors.dispose();
   runeEffects.dispose();
   disposeWebcamPip();
+  disposeScene();
+  renderer?.dispose();
+  renderer = null;
+  glCanvas?.remove();
+  glCanvas = null;
+  clock = 0;
+  hitFlash = 0;
+}
+
+function disposeScene(): void {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  const textures = new Set<THREE.Texture>();
+  scene.traverse((node) => {
+    const renderable = node as THREE.Mesh | THREE.Points | THREE.Sprite;
+    if ('geometry' in renderable && renderable.geometry) geometries.add(renderable.geometry);
+    if (!('material' in renderable) || !renderable.material) return;
+    const list = Array.isArray(renderable.material) ? renderable.material : [renderable.material];
+    for (const material of list) {
+      materials.add(material);
+      const map = (material as THREE.MeshBasicMaterial).map;
+      if (map) textures.add(map);
+    }
+  });
+  for (const texture of textures) texture.dispose();
+  for (const material of materials) material.dispose();
+  for (const geometry of geometries) geometry.dispose();
+  scene.clear();
 }

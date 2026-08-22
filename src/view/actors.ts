@@ -45,6 +45,7 @@ export class Actors {
   private readonly buildIds = new Int32Array(BUILD_SLOTS);
   private readonly buildAge = new Float32Array(BUILD_SLOTS);
   private debrisCursor = 0;
+  private disposed = false;
   private readonly offs: (() => void)[];
   private readonly meColor = tok('--me');
   private readonly themColor = tok('--them');
@@ -143,9 +144,11 @@ export class Actors {
       loader.load(
         `/anim/${file}`,
         (tex) => {
+          if (this.disposed) { tex.dispose(); return; }
           tex.colorSpace = THREE.SRGBColorSpace;
           this.poses[pose] = tex;
           if (required) this.mountSprite(tex);
+          else if (this.sprite && this.pose === pose) this.applyPoseTexture(tex);
         },
         undefined,
         () => { /* 沒有這張就算了，不是錯誤 */ },
@@ -166,7 +169,15 @@ export class Actors {
     this.sprite.position.set(0, h / 2 - 0.05, -GAP + 1);
     this.scene.add(this.sprite);
     this.opponent.visible = false;          // 幾何造型退場
+    this.applyPoseTexture(this.poses[this.pose] ?? tex);
+  }
 
+  private applyPoseTexture(tex: THREE.Texture): void {
+    if (!this.sprite) return;
+    const material = this.sprite.material as THREE.MeshBasicMaterial;
+    if (material.map === tex) return;
+    material.map = tex;
+    material.needsUpdate = true;
   }
 
   private buildPools(): void {
@@ -257,7 +268,7 @@ export class Actors {
       const want: Pose = this.t < this.hitUntil ? 'hit' : s.them.casting ? 'charge' : 'idle';
       if (want !== this.pose) {
         const tex = this.poses[want] ?? this.poses.idle;
-        if (tex && sm.map !== tex) { sm.map = tex; sm.needsUpdate = true; }
+        if (tex) this.applyPoseTexture(tex);
         this.pose = want;
       }
 
@@ -277,8 +288,11 @@ export class Actors {
 
       this.opponent.visible = false;
     } else {
+      const hit = Math.max(0, (this.hitUntil - this.t) / 0.3);
       this.opponent.position.x = wx;
       this.opponent.position.y = bob;
+      this.opponent.position.z = -GAP + 1 - hit * 0.18;
+      this.opponent.rotation.z = -hit * 0.12;
       this.opponent.visible = s.them.hp > 0;
     }
     // 起手時杖頂水晶亮起（幾何造型用）
@@ -351,5 +365,10 @@ export class Actors {
     }
   }
 
-  dispose(): void { this.offs.forEach((off) => off()); }
+  dispose(): void {
+    this.disposed = true;
+    this.offs.forEach((off) => off());
+    for (const tex of Object.values(this.poses)) tex?.dispose();
+    this.poses = {};
+  }
 }
