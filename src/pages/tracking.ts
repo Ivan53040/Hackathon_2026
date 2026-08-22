@@ -45,23 +45,45 @@ function tok(name: string): string {
  */
 function playerModeCss(): string {
   const void_ = tok('--void'), struct = tok('--struct'), ash = tok('--ash');
+  const parchment = tok('--parchment'), structLit = tok('--struct-lit');
   return `
     body { background: transparent !important; }
     .shell > header, .shell > .toolbar, .shell > .record-bar,
     .shell > aside.hud, .shell > footer { display: none !important; }
-    /* #shape-test 與 #tip-state 的資訊我們自己用玩家的語言講一次，不要兩份 */
+    /* #shape-test 與 #tip-state 的資訊我們自己講一次，不要兩份 */
     #shape-test, #tip-state { display: none !important; }
+    /* 訓練步驟 chip（1 HOLD / 2 SLOW / 3 CIRCLE…）是調參用的；
+       #calibration-progress 又把標題再講一次。兩個都是面板變高變擋的原因。 */
+    #training-steps, #calibration-progress { display: none !important; }
     .shell {
-      width: min(46rem, calc(100vw - 3rem)) !important;
-      padding: 0 0 32vh !important;
+      width: min(64rem, calc(100vw - 4rem)) !important;
+      padding: 0 0 13rem !important;   /* 面板實測約 11rem，留一點呼吸就好 */
       min-height: 100vh; display: flex; flex-direction: column; justify-content: center;
     }
     .stage-wrap {
-      height: min(44vh, 26rem) !important; min-height: 0 !important;
+      height: min(66vh, 40rem) !important; min-height: 0 !important;
       border-radius: 0 !important;
       border-color: ${struct} !important;
       background: ${void_} !important;
     }
+    /*
+     * 指引從「浮在臉上的 330px 窄卡」改成「貼齊底緣的整條欄」。
+     * 內容砍成兩行之後高度大幅下降，擋住的只剩畫面最底一條 —— 那裡通常是桌面，
+     * 不是筆尖所在。卡片浮在中間會擋掉你正要對準的東西。
+     */
+    .calibration-panel {
+      left: 0 !important; right: 0 !important; bottom: 0 !important;
+      width: auto !important; max-width: none !important;
+      transform: none !important;
+      gap: 2px !important;
+      padding: .7rem 1rem !important;
+      border: 0 !important;
+      border-top: 1px solid ${struct} !important;
+      border-radius: 0 !important;
+      background: ${void_}f2 !important;
+    }
+    .calibration-panel strong { font-size: 15px !important; color: ${parchment} !important; }
+    .calibration-panel span { font-size: 11px !important; color: ${structLit} !important; }
     .recalibrate {
       border-radius: 0 !important;
       border-color: ${ash} !important;
@@ -104,25 +126,25 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
    */
   el.innerHTML = `
     <section class="tracking-gate" aria-live="polite">
-      <p class="tracking-status" data-status>正在啟動相機…</p>
+      <p class="tracking-status" data-status>Starting the camera…</p>
       <div class="tracking-runes">
         <span class="tracking-rune" data-shape="z">
           <b>Z</b>
-          <i>攻擊</i>
-          <em data-state>待畫</em>
+          <i>Attack</i>
+          <em data-state>not yet</em>
         </span>
         <span class="tracking-rune" data-shape="arc">
           <b>&#x2312;</b>
-          <i>防禦</i>
-          <em data-state>待畫</em>
+          <i>Build</i>
+          <em data-state>not yet</em>
         </span>
       </div>
       <div class="tracking-actions">
-        <button class="btn primary" data-enter disabled>進入決鬥</button>
-        <button class="btn" data-mouse>用滑鼠玩</button>
+        <button class="btn primary" data-enter disabled>Enter the duel</button>
+        <button class="btn" data-mouse>Play with a mouse</button>
       </div>
       <p class="tracking-tip" data-tip>
-        <span class="tracking-dot" data-dot></span><span data-tiptext>尚未偵測到筆尖</span>
+        <span class="tracking-dot" data-dot></span><span data-tiptext>No pen tip yet</span>
       </p>
     </section>
   `;
@@ -141,13 +163,15 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
 
   /** 狀態一行由進度推導，永遠只講「還差什麼」 */
   function retell(): void {
-    if (!ready) { status.textContent = '正在啟動相機…'; return; }
-    if (passed.size === 0) { status.textContent = '依畫面完成校準，然後按住 Shift 畫一次 Z'; return; }
+    if (!ready) { status.textContent = 'Starting the camera…'; return; }
+    if (passed.size === 0) { status.textContent = 'Finish the steps below, then hold Shift and draw a Z'; return; }
     if (passed.size === 1) {
-      status.textContent = passed.has('z') ? '很好。再按住 Shift 畫一次 ⌒' : '很好。再按住 Shift 畫一次 Z';
+      status.textContent = passed.has('z')
+        ? 'Good. Now hold Shift and draw an arc'
+        : 'Good. Now hold Shift and draw a Z';
       return;
     }
-    status.textContent = 'Z 與 ⌒ 都通過了，可以進場。';
+    status.textContent = 'Both runes recognised — you are ready.';
   }
 
   /** 筆尖在不在。中性描述，不是指令 —— 見 tracking-tip 的樣式註解 */
@@ -155,7 +179,7 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
     if (live === tipLive) return;          // 每幀都進來，只在變化時碰 DOM
     tipLive = live;
     tipRow.classList.toggle('live', live);
-    tipText.textContent = live ? '筆尖偵測中' : '尚未偵測到筆尖';
+    tipText.textContent = live ? 'Pen tip tracking' : 'No pen tip yet';
   }
 
   const onMessage = (event: MessageEvent<TrackingMessage>): void => {
@@ -172,7 +196,7 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
       const item = el.querySelector<HTMLElement>(`[data-shape="${message.shape}"]`);
       if (item) {
         item.classList.add('passed');
-        item.querySelector('em')!.textContent = '通過';
+        item.querySelector('em')!.textContent = 'passed';
       }
       if (passed.size === 2) enter.disabled = false;
       retell();

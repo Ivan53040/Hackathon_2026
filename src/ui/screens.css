@@ -32,37 +32,40 @@
  */
 .tracking-screen {
   align-items: center; justify-content: flex-end;
-  padding-bottom: var(--s5);
+  padding-bottom: var(--s4);
   background: transparent; pointer-events: none;
 }
 .tracking-gate {
-  width: min(46rem, calc(100vw - 3rem));
+  width: min(64rem, calc(100vw - 4rem));
   display: flex; flex-direction: column; align-items: center;
-  gap: var(--s3);
+  gap: var(--s2);
   pointer-events: auto;
 }
 
 /* 狀態只有一行。字級拉到 --t-lg：這是全畫面唯一一句要人讀的話 */
 .tracking-status {
-  margin: 0; min-height: 1.5em;
+  margin: 0 0 var(--s1); min-height: 1.4em;
   color: var(--parchment);
   font-size: var(--t-lg); line-height: 1.4; text-align: center;
 }
 
 /* 兩個符文並排。字形本身就是說明 —— 玩家要畫的就是它 */
-.tracking-runes { display: flex; gap: var(--s3); width: 100%; }
+/* 橫排。直排每格要 100px，橫排 48px —— 省下的高度全部讓給相機畫面 */
+.tracking-runes { display: flex; gap: var(--s2); width: 100%; }
 .tracking-rune {
   flex: 1;
-  display: flex; flex-direction: column; align-items: center; gap: var(--s1);
-  padding: var(--s3) var(--s2);
+  display: flex; flex-direction: row; align-items: center; gap: var(--s2);
+  padding: var(--s2) var(--s3);
   border: var(--hairline) solid var(--struct);
   background: color-mix(in srgb, var(--void) 82%, transparent);
 }
 .tracking-rune b {
-  font-size: var(--t-xl); line-height: 1;
+  font-size: var(--t-lg); line-height: 1;
+  min-width: 1.25em; text-align: center;
   color: var(--dim); font-weight: 400;
   transition: color var(--d-fast) var(--ease-out);
 }
+.tracking-rune i { margin-right: auto; }
 .tracking-rune i { font-style: normal; font-size: var(--t-sm); color: var(--struct-lit); }
 .tracking-rune em {
   font-style: normal; font-size: var(--t-xs); letter-spacing: .12em;
