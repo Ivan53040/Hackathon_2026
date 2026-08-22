@@ -42,6 +42,57 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
       <!-- 手機玩不了（要 webcam + 筆 + A/D 鍵盤）。與其假裝支援，不如講清楚 -->
       <p class="note desktop-only">Needs a desktop browser with a webcam.</p>
     </div>
+
+    <div class="landing-modal" data-modal="join" role="dialog" aria-modal="true"
+         aria-labelledby="join-title" hidden>
+      <form class="landing-modal-card join-card" data-join-form>
+        <p class="modal-kicker">Duel connection</p>
+        <h2 id="join-title">JOIN A ROOM</h2>
+        <p class="modal-copy">Enter the four-letter rune shared by the room host.</p>
+        <label class="modal-label" for="room-code">Room code</label>
+        <input class="field modal-field" id="room-code" data-room-code
+               maxlength="4" minlength="4" autocomplete="off" spellcheck="false"
+               aria-describedby="join-error" placeholder="RUNE">
+        <p class="modal-error" id="join-error" data-join-error aria-live="polite"></p>
+        <div class="modal-actions">
+          <button class="btn" type="button" data-close="join">Cancel</button>
+          <button class="btn primary" type="submit" data-join-submit>Join duel</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="landing-modal" data-modal="help" role="dialog" aria-modal="true"
+         aria-labelledby="help-title" hidden>
+      <section class="landing-modal-card help-card">
+        <p class="modal-kicker">Field guide</p>
+        <h2 id="help-title">HOW TO PLAY</h2>
+        <p class="modal-copy">Move, draw a rune, then cast before your opponent can react.</p>
+
+        <div class="help-steps">
+          <div class="help-step">
+            <span class="help-key">A / D</span>
+            <span><b>Move</b><small>Step left or right to dodge a straight spell.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-key">SHIFT</span>
+            <span><b>Draw</b><small>Hold Shift and trace a rune with your wand.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-rune">&#9651;</span>
+            <span><b>Attack</b><small>Cast a direct spell at your opponent.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-rune">&#9723;</span>
+            <span><b>Build</b><small>Create cover. It breaks after taking two hits.</small></span>
+          </div>
+        </div>
+
+        <p class="help-tip"><b>Cover advantage</b> Your cover blocks enemy spells and hides your HP and MP, while your own attacks pass through it.</p>
+        <div class="modal-actions single-action">
+          <button class="btn primary" type="button" data-close="help">Ready to duel</button>
+        </div>
+      </section>
+    </div>
   `;
   register('landing', el);
 
@@ -74,34 +125,77 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
     }
   });
 
-  el.querySelector('[data-a="join"]')!.addEventListener('click', async () => {
+  const joinModal = el.querySelector<HTMLElement>('[data-modal="join"]')!;
+  const helpModal = el.querySelector<HTMLElement>('[data-modal="help"]')!;
+  const roomCode = el.querySelector<HTMLInputElement>('[data-room-code]')!;
+  const joinError = el.querySelector<HTMLElement>('[data-join-error]')!;
+  const joinSubmit = el.querySelector<HTMLButtonElement>('[data-join-submit]')!;
+
+  function openModal(modal: HTMLElement): void {
+    modal.hidden = false;
+    requestAnimationFrame(() => {
+      if (modal === joinModal) roomCode.focus();
+      else modal.querySelector<HTMLButtonElement>('[data-close]')?.focus();
+    });
+  }
+
+  function closeModal(modal: HTMLElement): void {
+    modal.hidden = true;
+    joinError.textContent = '';
+  }
+
+  el.querySelector('[data-a="join"]')!.addEventListener('click', () => {
     fail('');
-    const code = prompt('Room code (4 letters)')?.trim().toUpperCase();
-    if (!code) return;
+    roomCode.value = '';
+    openModal(joinModal);
+  });
+
+  roomCode.addEventListener('input', () => {
+    roomCode.value = roomCode.value.replace(/[^a-z]/gi, '').slice(0, 4).toUpperCase();
+    joinError.textContent = '';
+  });
+
+  el.querySelector<HTMLFormElement>('[data-join-form]')!.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const code = roomCode.value.trim().toUpperCase();
+    if (code.length !== 4) {
+      joinError.textContent = 'Enter the complete four-letter room code.';
+      roomCode.focus();
+      return;
+    }
     try {
-      const r = await checkRoom(code);
-      if (!r.exists) return fail('No room with that code — check it again');
-      if (r.full) return fail('That room already has two players');
+      const r = await busy(joinSubmit, 'Checking…', () => checkRoom(code));
+      if (!r) return;
+      if (!r.exists) return void (joinError.textContent = 'No room uses that code. Check the rune and try again.');
+      if (r.full) return void (joinError.textContent = 'That room already has two duelists.');
       h.onJoin(code, 'p_' + Math.random().toString(36).slice(2, 8));
     } catch {
-      fail('Cannot reach the server');
+      joinError.textContent = 'Cannot reach the duel server right now.';
     }
   });
 
   el.querySelector('[data-a="solo"]')!.addEventListener('click', () => h.onSolo());
   el.querySelector('[data-a="help"]')!.addEventListener('click', () => {
-    // TODO [Wesley]：做成正式的說明頁。現在先讓 judge 至少讀得到規則
-    alert(
-      'HOW TO PLAY\n\n' +
-      'A / D      step left and right to dodge\n' +
-      'Shift      hold, then draw the rune with your wand\n\n' +
-      'Triangle   Attack\n' +
-      'Square     Build cover\n\n' +
-      'Cover takes two hits before it breaks.\n' +
-      'Your own cover never blocks your shots —\n' +
-      'so building one lets you defend and attack at once.\n' +
-      'Behind cover, your opponent cannot read your HP or MP.',
-    );
+    openModal(helpModal);
+  });
+
+  el.querySelectorAll<HTMLElement>('[data-close]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const modal = button.closest<HTMLElement>('[data-modal]');
+      if (modal) closeModal(modal);
+    });
+  });
+
+  el.querySelectorAll<HTMLElement>('[data-modal]').forEach((modal) => {
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal(modal);
+    });
+  });
+
+  el.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!joinModal.hidden) closeModal(joinModal);
+    else if (!helpModal.hidden) closeModal(helpModal);
   });
 
   show('landing');

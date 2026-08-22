@@ -200,6 +200,130 @@
   text-transform: uppercase;
 }
 
+/* ── 首頁對話框 ───────────────────────────────
+ * 不使用瀏覽器 prompt / alert：它們會跳回系統白色介面、按鈕語言不一致，
+ * 長說明還會被固定高度裁切。這裡沿用石碑的硬邊與雙方色線。
+ */
+.landing-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: color-mix(in srgb, var(--void) 76%, transparent);
+  backdrop-filter: blur(var(--s1));
+}
+.landing-modal[hidden] { display: none; }
+
+.landing-modal-card {
+  width: min(32rem, 92vw);
+  max-height: min(46rem, 88vh);
+  overflow-y: auto;
+  padding: var(--s5);
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--void) 98%, var(--struct) 2%),
+    color-mix(in srgb, var(--void) 92%, var(--struct) 8%)
+  );
+  border-top: var(--hairline) solid var(--me);
+  border-bottom: var(--hairline) solid var(--them-hot);
+  color: var(--parchment);
+}
+
+.landing-modal-card h2 {
+  margin: var(--s1) 0 var(--s2);
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 400;
+  letter-spacing: .045em;
+  color: var(--me);
+}
+.modal-kicker {
+  margin: 0;
+  font-size: var(--t-xs);
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: var(--them-hot);
+}
+.modal-copy {
+  margin: 0 0 var(--s4);
+  color: var(--struct-lit);
+  font-size: var(--t-sm);
+  line-height: 1.65;
+}
+.modal-label {
+  display: block;
+  margin-bottom: var(--s2);
+  color: var(--parchment);
+  font-size: var(--t-xs);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+.modal-field {
+  min-height: var(--s5);
+  background: color-mix(in srgb, var(--void) 78%, transparent);
+}
+.modal-field::placeholder { color: color-mix(in srgb, var(--struct) 42%, transparent); }
+.modal-error {
+  min-height: 1.5em;
+  margin: var(--s2) 0 0;
+  color: var(--me-hot);
+  font-size: var(--t-xs);
+  line-height: 1.5;
+}
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+.modal-actions .btn { width: 100%; }
+.modal-actions.single-action { grid-template-columns: 1fr; }
+
+.help-card { width: min(38rem, 92vw); }
+.help-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+.help-step {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  align-items: center;
+  gap: var(--s3);
+  min-height: var(--s6);
+  padding: var(--s3);
+  border: var(--hairline) solid color-mix(in srgb, var(--struct) 46%, transparent);
+  background: color-mix(in srgb, var(--struct) 7%, transparent);
+}
+.help-step > span:last-child { display: flex; flex-direction: column; gap: var(--s1); }
+.help-step b { color: var(--parchment); font-size: var(--t-sm); }
+.help-step small { color: var(--struct-lit); font-size: var(--t-xs); line-height: 1.45; }
+.help-key,
+.help-rune {
+  color: var(--me);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+.help-key { font-size: var(--t-sm); letter-spacing: .08em; }
+.help-rune { font-size: var(--t-xl); line-height: 1; }
+.help-tip {
+  margin: var(--s3) 0 0;
+  padding: var(--s3);
+  border-left: var(--hairline) solid var(--them-hot);
+  background: color-mix(in srgb, var(--them) 12%, transparent);
+  color: var(--struct-lit);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+}
+.help-tip b { color: var(--them-hot); }
+
+@media (max-width: 48rem) {
+  .landing-modal-card { padding: var(--s4); }
+  .help-steps { grid-template-columns: 1fr; }
+}
+
 
 /* ── 對局中的選單（Esc）───────────────────────────
  * 疊在對局上面，不取代它 —— 玩家要看得到自己丟下的是什麼場面。
