@@ -1,0 +1,15 @@
+{
+  "name": "backend-tracking-test",
+  "displayName": "backend tracking test",
+  "version": "1.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Self-contained backend host for the WandFrame pen-tracking test.",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
