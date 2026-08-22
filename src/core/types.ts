@@ -8,7 +8,7 @@
 
 export type Role = 'host' | 'guest';
 export type Mode = 'solo' | 'host' | 'guest';
-export type Spell = 'attack' | 'wall';   // △ 攻擊 · □ 建造
+export type Spell = 'attack' | 'wall';   // Z 攻擊 · arc 建造
 
 // ─── 追蹤 ──────────────────────────────────────────
 export interface Vec2 { x: number; y: number; }
@@ -17,7 +17,7 @@ export interface WandFrame {
   /** 筆尖，normalized 0..1，已水平鏡像 */
   tip: Vec2 | null;
   tipConfidence: number;   // 0..1
-  source: 'mediapipe' | 'mouse';
+  source: 'pen' | 'mediapipe' | 'mouse';
   t: number;               // performance.now()
 }
 

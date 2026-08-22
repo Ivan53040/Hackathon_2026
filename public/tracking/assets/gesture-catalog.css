@@ -1,0 +1,42 @@
+.shape-catalog {
+  width: min(310px, 35%);
+}
+
+.shape-catalog ul {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.shape-catalog li {
+  grid-template-columns: 23px minmax(0, 1fr) auto;
+  min-height: 27px;
+  padding: 2px 6px;
+}
+
+.shape-catalog li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .shape-catalog,
+  .shape-result {
+    width: 150px;
+    padding: 7px;
+  }
+
+  .shape-catalog {
+    top: 44px;
+  }
+
+  .shape-catalog ul {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .shape-catalog li {
+    grid-template-columns: 20px 1fr;
+    min-height: 21px;
+    padding: 1px 5px;
+  }
+}

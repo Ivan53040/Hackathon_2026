@@ -17,6 +17,7 @@ import { buildLanding } from './pages/landing';
 import { buildLobby, enterLobby } from './pages/lobby';
 import { buildResults, enterResults } from './pages/results';
 import { buildPause, openPause, closePause, isPaused } from './pages/pause';
+import { buildTracking, enterTracking } from './pages/tracking';
 import { connect, createRemoteOpponent, disconnect, sendInput, sendCast, sendStart, isHost } from './net';
 import type { MatchState, Mode } from './core/types';
 
@@ -46,21 +47,39 @@ on(EV.FIZZLE, () => { casts++; });
 
 // ─── 頁面 ─────────────────────────────────────────
 let mode: Mode = 'solo';
+let pendingStart: (() => void) | null = null;
 
 buildLanding(app, {
   onHost: async (code, playerId) => { await connect(code, playerId); enterLobby(code); },
   onJoin: async (code, playerId) => { await connect(code, playerId); enterLobby(code); },
-  onSolo: () => startMatch('solo'),
+  onSolo: () => requestGameStart(() => startMatch('solo')),
 });
-buildLobby(app, () => { if (isHost()) sendStart(); startMatch(isHost() ? 'host' : 'guest'); }, () => startMatch('solo'));
+buildLobby(app, () => {
+  if (isHost()) sendStart();
+  requestGameStart(() => startMatch(isHost() ? 'host' : 'guest'));
+}, () => requestGameStart(() => startMatch('solo')));
 
 // host 按下開始 → guest 自動進場，不用兩邊各按一次（在台上一定會有人忘記按）
 on(EV.NET_PEER_MSG, (p) => {
-  if ((p as { type?: string })?.type === 'start' && !isHost() && currentScreen() !== 'game') startMatch('guest');
+  if ((p as { type?: string })?.type === 'start' && !isHost() && currentScreen() !== 'game') {
+    requestGameStart(() => startMatch('guest'));
+  }
 });
-buildResults(app, () => startMatch(mode), () => { disconnect(); show('landing'); });
+buildResults(app, () => requestGameStart(() => startMatch(mode)), () => { disconnect(); show('landing'); });
 // 對局中的唯一退出路徑（02-journey-ia.md：返回路徑必須存在）
 buildPause(app, { onLeave: () => { disconnect(); disposeMatch(); } });
+buildTracking(app, (usePen) => {
+  void setSource(usePen ? 'pen' : 'mouse').then(() => {
+    const next = pendingStart;
+    pendingStart = null;
+    next?.();
+  });
+});
+
+function requestGameStart(next: () => void): void {
+  pendingStart = next;
+  enterTracking();
+}
 
 function startMatch(m: Mode): void {
   mode = m;
@@ -100,7 +119,7 @@ initInput();
 await setSource('mouse');
 initRunes();
 initView(canvas);
-if (AUTO_SOLO) startMatch('solo');
+if (AUTO_SOLO) requestGameStart(() => startMatch('solo'));
 
 // 施法事件轉送到對手
 on(EV.CAST, (p) => {

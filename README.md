@@ -21,8 +21,8 @@ avatar of you on screen, only your opponent.
 | Input | Action |
 |---|---|
 | `A` / `D` | Step left and right to dodge |
-| `Shift` + draw **△** | **Attack** — a bolt flies at your opponent |
-| `Shift` + draw **□** | **Build** — raises cover in front of you |
+| `Shift` + draw **Z** | **Attack** — a bolt flies at your opponent |
+| `Shift` + draw **arc (⌒)** | **Build** — raises cover in front of you |
 
 A projectile locks its target at the moment it is fired and never tracks you afterwards.
 That is what makes it dodgeable: see the wind-up, read the lane, step out of it.
@@ -142,7 +142,7 @@ src/
   core/       Types, event bus, tuning constants, keyboard input
   tracking/   Webcam → pen tip. MediaPipe hand landmarks, One Euro smoothing,
               and a mouse fallback that keeps the game playable without a camera
-  runes/      $1 gesture recogniser — turns a stroke into △ or □
+  runes/      Gesture recogniser — turns Z into attack and arc into cover
   match/      Authoritative simulation: movement, mana, projectiles, cover, bot AI
   view/       Three.js rendering, first-person camera, arena, opponent sprite,
               rune trails and spell effects

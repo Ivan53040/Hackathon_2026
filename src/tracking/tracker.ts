@@ -16,6 +16,7 @@ export interface TipSource {
 }
 
 const IDLE: WandFrame = { tip: null, tipConfidence: 0, source: 'mouse', t: 0 };
+let externalFrame: WandFrame = { tip: null, tipConfidence: 0, source: 'pen', t: 0 };
 
 let current: TipSource | null = null;
 let sourceRequest = 0;
@@ -31,6 +32,9 @@ export async function setSource(kind: WandFrame['source']): Promise<void> {
       break;
     case 'mediapipe':
       next = createHandSource();
+      break;
+    case 'pen':
+      next = createPenSource();
       break;
   }
   try {
@@ -55,4 +59,32 @@ export function currentKind(): WandFrame['source'] | null {
   return current?.kind ?? null;
 }
 
+/** 接收 tracking runtime iframe 持續送出的筆尖座標。 */
+export function publishExternalFrame(frame: {
+  timestamp?: number;
+  tip?: WandFrame['tip'];
+  confidence?: number;
+  tipConfidence?: number;
+}): void {
+  externalFrame = {
+    tip: frame.tip ?? null,
+    tipConfidence: frame.tipConfidence ?? frame.confidence ?? (frame.tip ? 1 : 0),
+    source: 'pen',
+    t: frame.timestamp ?? performance.now(),
+  };
+}
+
+export function clearExternalFrame(): void {
+  externalFrame = { tip: null, tipConfidence: 0, source: 'pen', t: performance.now() };
+}
+
 export function dispose(): void { sourceRequest++; current?.dispose(); current = null; }
+
+function createPenSource(): TipSource {
+  return {
+    kind: 'pen',
+    async start() { /* Camera lifecycle is owned by the tracking runtime. */ },
+    read(): WandFrame { return externalFrame; },
+    dispose() { clearExternalFrame(); },
+  };
+}

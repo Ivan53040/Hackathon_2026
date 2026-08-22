@@ -4,7 +4,7 @@
  */
 import '../ui/screens.css';
 
-export type Screen = 'landing' | 'lobby' | 'game' | 'results';
+export type Screen = 'landing' | 'lobby' | 'tracking' | 'game' | 'results';
 
 const nodes = new Map<Screen, HTMLElement>();
 let current: Screen = 'landing';

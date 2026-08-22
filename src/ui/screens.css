@@ -12,6 +12,49 @@
 }
 .screen[hidden] { display: none; }
 
+/* ── Tracking gate ─────────────────────────────
+ * iframe 在遊戲中停到畫面外而不是 display:none，瀏覽器才不會節流 webcam / rAF。
+ */
+.tracking-runtime {
+  position: absolute; inset: 0; z-index: 9;
+  width: 100%; height: 100%; border: 0; background: var(--void);
+}
+.tracking-runtime.parked {
+  inset: 0 auto auto -100vw;
+  width: 20rem; height: 15rem;
+  opacity: 0; pointer-events: none; z-index: -1;
+}
+.tracking-screen {
+  align-items: flex-start; justify-content: flex-end;
+  background: transparent; pointer-events: none;
+}
+.tracking-gate {
+  width: min(27rem, calc(100vw - var(--s5)));
+  padding: var(--s4);
+  border: var(--hairline) solid var(--struct);
+  border-top-color: var(--me);
+  background: color-mix(in srgb, var(--void) 95%, transparent);
+  pointer-events: auto;
+}
+.tracking-kicker {
+  margin: 0 0 var(--s2); color: var(--me);
+  font-size: var(--t-xs); letter-spacing: .16em;
+}
+.tracking-gate h1 { margin: 0; font-size: var(--t-xl); color: var(--parchment); text-align: left; }
+.tracking-copy { margin: var(--s2) 0 var(--s3); color: var(--struct-lit); line-height: 1.6; font-size: var(--t-sm); }
+.tracking-progress { display: flex; gap: var(--s2); margin-bottom: var(--s2); }
+.tracking-progress span {
+  flex: 1; padding: var(--s2);
+  border: var(--hairline) solid var(--struct);
+  color: var(--dim); font-size: var(--t-sm);
+}
+.tracking-progress b { float: right; color: var(--dim); font-size: var(--t-xs); }
+.tracking-progress .passed { border-color: var(--me); color: var(--me-hot); }
+.tracking-progress .passed b { color: var(--me); }
+.tracking-status { min-height: 1.4em; margin: 0 0 var(--s3); color: var(--parchment); font-size: var(--t-sm); }
+.tracking-actions { display: flex; gap: var(--s2); }
+.tracking-actions .btn { flex: 1; font-size: var(--t-sm); }
+
 /*
  * 首頁封面。
  *

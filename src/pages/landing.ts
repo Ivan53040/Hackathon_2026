@@ -25,8 +25,8 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
       <h1>RUNESPIRE</h1>
       <p class="sub">Draw the rune · Cast the spell</p>
       <div class="runes">
-        <span><b>&#9651;</b><i>Attack</i></span>
-        <span><b>&#9723;</b><i>Build</i></span>
+        <span><b>Z</b><i>Attack</i></span>
+        <span><b>&#x2312;</b><i>Arc · Build</i></span>
       </div>
       <div class="actions">
         <button class="btn primary" data-a="host">Create a room</button>
@@ -36,7 +36,7 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
       </div>
       <p class="err" data-err></p>
       <p class="note">
-        Hold <b>Shift</b> and draw the rune in the air with your wand.<br>
+        Hold <b>Shift</b> and draw Z or arc in the air with your wand.<br>
         <b>A</b> / <b>D</b> to step left and right.
       </p>
       <!-- 手機玩不了（要 webcam + 筆 + A/D 鍵盤）。與其假裝支援，不如講清楚 -->
@@ -78,12 +78,12 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
             <span><b>Draw</b><small>Hold Shift and trace a rune with your wand.</small></span>
           </div>
           <div class="help-step">
-            <span class="help-rune">&#9651;</span>
-            <span><b>Attack</b><small>Cast a direct spell at your opponent.</small></span>
+            <span class="help-rune">Z</span>
+            <span><b>Attack</b><small>Draw a Z to cast a direct spell at your opponent.</small></span>
           </div>
           <div class="help-step">
-            <span class="help-rune">&#9723;</span>
-            <span><b>Build</b><small>Create cover. It breaks after taking two hits.</small></span>
+            <span class="help-rune">&#x2312;</span>
+            <span><b>Build</b><small>Draw an arc to create cover. It breaks after taking two hits.</small></span>
           </div>
         </div>
 
