@@ -27,6 +27,7 @@ let overlay: HTMLCanvasElement;
 let ctx: CanvasRenderingContext2D;
 let offs: (() => void)[] = [];
 const namePos = new THREE.Vector3();
+const tmp = new THREE.Vector3();
 
 export function initView(overlayCanvas: HTMLCanvasElement): void {
   overlay = overlayCanvas;
@@ -68,9 +69,54 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   namePos.set((s.them.x - 0.5) * LANE_WIDTH, 2.35, -GAP + 1);
   drawNameplate(ctx, fps.cam, namePos, s.them.hp, s.them.mp, s.canSeeThemStats);
 
+  drawTracers(s);
   drawTrail();
   drawHud(ctx, s);
   void f;
+}
+
+/**
+ * 投射物軌跡。
+ *
+ * 子彈本來就走直線，但畫面上只有一顆會變大的球時看不出來 ——
+ * 補一條沿著實際路徑的尾跡，直線感就出來了，
+ * 而且玩家看得到「它會落在哪」，才知道要往哪邊閃。
+ */
+function drawTracers(s: MatchState): void {
+  if (!s.projectiles.length) return;
+  const css = getComputedStyle(document.documentElement);
+  const mine = css.getPropertyValue('--me').trim() || '#D4AF37';
+  const theirs = css.getPropertyValue('--them-hot').trim() || '#3CC6FF';
+
+  ctx.lineCap = 'round';
+  for (const p of s.projectiles) {
+    const now = projPoint(p.fromX, p.toX, p.owner === 'them', p.progress);
+    const tail = projPoint(p.fromX, p.toX, p.owner === 'them', Math.max(0, p.progress - 0.14));
+    if (!now || !tail) continue;
+    ctx.strokeStyle = p.owner === 'me' ? mine : theirs;
+    for (const [w, a] of [[9, 0.14], [4, 0.4], [1.5, 0.85]] as const) {
+      ctx.lineWidth = w;
+      ctx.globalAlpha = a;
+      ctx.beginPath();
+      ctx.moveTo(tail.x, tail.y);
+      ctx.lineTo(now.x, now.y);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** 把投射物在 t 時刻的世界座標投影到螢幕。跟 actors.ts 用同一條路徑公式 */
+function projPoint(fromX: number, toX: number, toward: boolean, t: number) {
+  const k = Math.min(Math.max(t, 0), 1);
+  tmp.set(
+    THREE.MathUtils.lerp((fromX - 0.5) * LANE_WIDTH, (toX - 0.5) * LANE_WIDTH, k),
+    1.35,
+    toward ? -GAP + k * (GAP - 0.6) : -k * (GAP - 0.6),
+  );
+  const v = tmp.project(fps.cam);
+  if (v.z > 1) return null;
+  return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (-v.y * 0.5 + 0.5) * innerHeight };
 }
 
 /**

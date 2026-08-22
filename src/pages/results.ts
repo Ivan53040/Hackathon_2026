@@ -15,8 +15,8 @@ export function buildResults(root: HTMLElement, onAgain: () => void, onHome: () 
     <h1 data-title>—</h1>
     <p class="sub" data-stat></p>
     <div class="actions">
-      <button class="btn primary" data-a="again">再來一場</button>
-      <button class="btn" data-a="home">回大廳</button>
+      <button class="btn primary" data-a="again">Duel again</button>
+      <button class="btn" data-a="home">Back to menu</button>
     </div>
   `;
   register('results', el);
@@ -27,8 +27,8 @@ export function buildResults(root: HTMLElement, onAgain: () => void, onHome: () 
 }
 
 export function enterResults(win: boolean, casts: number, hits: number): void {
-  titleEl.textContent = win ? '勝利' : '敗北';
+  titleEl.textContent = win ? 'VICTORY' : 'DEFEAT';
   const rate = casts > 0 ? Math.round((hits / casts) * 100) : 0;
-  statEl.textContent = `施法 ${casts} 次 · 辨識成功率 ${rate}%`;
+  statEl.textContent = `${casts} casts · ${rate}% recognised`;
   show('results');
 }

@@ -45,9 +45,9 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: MatchState): void {
   // ── 符文小抄：兩個。第一局後可以淡掉，但觀眾每 3 秒換一個人在看 ──
   ctx.font = `600 15px ${mono}`;
   ctx.fillStyle = s.me.mp >= CONFIG.COST.attack ? me : 'rgba(124,136,171,.35)';
-  ctx.fillText('△ 攻擊', x0, h - 34);
+  ctx.fillText('△  ATTACK', x0, h - 34);
   ctx.fillStyle = s.me.mp >= CONFIG.COST.wall ? me : 'rgba(124,136,171,.35)';
-  ctx.fillText('□ 建造', x0 + 92, h - 34);
+  ctx.fillText('□  BUILD', x0 + 118, h - 34);
 
   // ── 時間：小、低對比。時限只是保險，不是主要玩法 ──
   ctx.font = `13px ${mono}`;

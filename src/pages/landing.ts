@@ -21,19 +21,19 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
     <h1>RUNESPIRE</h1>
     <p class="sub">Draw the rune · Cast the spell</p>
     <div class="runes">
-      <span><b>△</b>攻擊</span>
-      <span><b>□</b>建造</span>
+      <span><b>△</b>Attack</span>
+      <span><b>□</b>Build</span>
     </div>
     <div class="actions">
-      <button class="btn primary" data-a="host">創建房間</button>
-      <button class="btn" data-a="join">加入房間</button>
-      <button class="btn" data-a="solo">單人練習</button>
-      <button class="btn" data-a="help">說明</button>
+      <button class="btn primary" data-a="host">Create a room</button>
+      <button class="btn" data-a="join">Join a room</button>
+      <button class="btn" data-a="solo">Practise against a bot</button>
+      <button class="btn" data-a="help">How to play</button>
     </div>
     <p class="err" data-err></p>
     <p class="note">
-      右手持筆在鏡頭前畫符文出招，左手 <b>A</b> / <b>D</b> 左右移動。<br>
-      按住 <b>Shift</b> 才會開始記錄你畫的軌跡。
+      Hold <b>Shift</b> and draw the rune in the air with your wand.<br>
+      <b>A</b> / <b>D</b> to step left and right.
     </p>
   `;
   register('landing', el);
@@ -47,21 +47,21 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
       const { code, playerId } = await createRoom();
       h.onHost(code, playerId);
     } catch (e) {
-      fail(e instanceof Error ? e.message : '建立房間失敗，改用單人練習也可以');
+      fail(e instanceof Error ? e.message : 'Could not create a room — you can still practise against a bot');
     }
   });
 
   el.querySelector('[data-a="join"]')!.addEventListener('click', async () => {
     fail('');
-    const code = prompt('輸入房間代碼（4 個字母）')?.trim().toUpperCase();
+    const code = prompt('Room code (4 letters)')?.trim().toUpperCase();
     if (!code) return;
     try {
       const r = await checkRoom(code);
-      if (!r.exists) return fail('找不到這個房間，代碼再確認一次');
-      if (r.full) return fail('這個房間已經有兩個人了');
+      if (!r.exists) return fail('No room with that code — check it again');
+      if (r.full) return fail('That room already has two players');
       h.onJoin(code, 'p_' + Math.random().toString(36).slice(2, 8));
     } catch {
-      fail('連不上伺服器');
+      fail('Cannot reach the server');
     }
   });
 
@@ -69,13 +69,15 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
   el.querySelector('[data-a="help"]')!.addEventListener('click', () => {
     // TODO [Wesley]：做成正式的說明頁。現在先讓 judge 至少讀得到規則
     alert(
-      '怎麼玩\n\n' +
-      '· A / D 左右移動閃避\n' +
-      '· 按住 Shift，右手持筆在鏡頭前畫符文\n' +
-      '· △ 攻擊　□ 建造遮蔽物\n\n' +
-      '遮蔽物會擋下敵方的攻擊（撐兩次），\n' +
-      '而且你從自己的牆後面開火不會被擋住。\n' +
-      '躲在牆後，敵方也看不到你的血量與魔量。',
+      'HOW TO PLAY\n\n' +
+      'A / D      step left and right to dodge\n' +
+      'Shift      hold, then draw the rune with your wand\n\n' +
+      'Triangle   Attack\n' +
+      'Square     Build cover\n\n' +
+      'Cover takes two hits before it breaks.\n' +
+      'Your own cover never blocks your shots —\n' +
+      'so building one lets you defend and attack at once.\n' +
+      'Behind cover, your opponent cannot read your HP or MP.',
     );
   });
 
