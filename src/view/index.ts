@@ -14,6 +14,7 @@ import { getStroke } from '../runes';
 import { FpsCamera } from './camera';
 import { buildArena, GAP, type ArenaRefs } from './arena';
 import { buildScenery, updateScenery, disposeScenery } from './scenery';
+import { buildRomanArena, updateRomanArena, disposeRomanArena } from './romanArena';
 import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
 import { drawHud } from '../ui/hud';
@@ -49,6 +50,7 @@ let hitVignette: CanvasGradient;
 let meColor = '';
 let meHotColor = '';
 let themHotColor = '';
+const romanScene = new URLSearchParams(location.search).get('scene') !== 'moon';
 
 function tokenRgb(name: string): [number, number, number] {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -90,11 +92,16 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   renderer = new THREE.WebGLRenderer({ canvas: gl, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight, false);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = romanScene ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+  renderer.toneMappingExposure = romanScene ? 1.08 : 1;
+  renderer.shadowMap.enabled = romanScene;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
   fps = new FpsCamera(innerWidth / innerHeight);
-  arena = buildArena(scene);
-  buildScenery(scene);            // 決鬥場本身，見 SCENE-BRIEF.md（Codex 的檔）
+  arena = romanScene ? buildRomanArena(scene) : buildArena(scene);
+  if (!romanScene) buildScenery(scene); // 舊月光場景保留：加 ?scene=moon 即可切回
   actors = new Actors(scene);
   runeEffects = new RuneEffects();
 
@@ -130,11 +137,15 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   clock += dt;
   fps.update(s.me.x, dt);
   actors.update(s, dt);
-  // 環境呼吸：星光微閃、月暈脈動。畫面完全靜止會讓人以為當機
-  (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
-  arena.stars.rotation.y = clock * 0.004;
-  (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
-  updateScenery(clock, dt);
+  if (romanScene) {
+    updateRomanArena(clock);
+  } else {
+    // 環境呼吸：星光微閃、月暈脈動。畫面完全靜止會讓人以為當機
+    (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
+    arena.stars.rotation.y = clock * 0.004;
+    (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
+    updateScenery(clock, dt);
+  }
   renderer.render(scene, fps.cam);
 
   ctx.clearRect(0, 0, innerWidth, innerHeight);
@@ -250,7 +261,8 @@ export function disposeView(): void {
   removeEventListener('resize', onResize);
   actors.dispose();
   runeEffects.dispose();
-  disposeScenery();
+  if (romanScene) disposeRomanArena();
+  else disposeScenery();
   disposeWebcamPip();
   disposeScene();
   renderer?.dispose();

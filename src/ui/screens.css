@@ -12,6 +12,26 @@
 }
 .screen[hidden] { display: none; }
 
+/*
+ * 首頁封面。中央壓暗是必要的 —— 封面正中間就是兩道法術的強光，
+ * 標題與按鈕壓在上面會讀不到。邊緣保持亮，畫面才看得出是張圖。
+ * 透明度用 color-mix 從 --void 推導，維持「只用 token」。
+ */
+.screen.cover {
+  background:
+    radial-gradient(ellipse 62% 78% at 50% 52%,
+      color-mix(in srgb, var(--void) 90%, transparent) 0%,
+      color-mix(in srgb, var(--void) 74%, transparent) 55%,
+      color-mix(in srgb, var(--void) 42%, transparent) 100%),
+    url('/cover.jpg') center / cover no-repeat,
+    var(--void);
+}
+
+/* 螢幕很窄時圖會被裁到只剩中間，不如收掉，讓文字乾淨 */
+@media (max-width: 40rem) {
+  .screen.cover { background: var(--void); }
+}
+
 .screen h1 {
   margin: 0;
   font-family: var(--font-display);

@@ -28,9 +28,15 @@ data/telemetry.jsonl
 .vscode/*
 !.vscode/extensions.json
 
-# MediaPipe 模型檔（各自下載，不進版控）
+# MediaPipe 執行檔（各自下載，不進版控）
+# .js 是 .wasm 的載入器，兩者必須成對；只推 .js 對別人沒有用。
+# 取得方式見 README「Fetch the MediaPipe assets」。
 public/mediapipe/*.wasm
 public/mediapipe/*.task
+public/mediapipe/*.js
+
+# Blender 自動備份，不是原始檔
+*.blend1
 
 # 生成的動畫素材原始影片（只進 atlas PNG）
 public/anim/**/*.mp4

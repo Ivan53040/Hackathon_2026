@@ -17,6 +17,7 @@ type Handlers = {
 
 export function buildLanding(root: HTMLElement, h: Handlers): void {
   const el = makeScreen(root);
+  el.classList.add('cover');          // 首頁鋪封面，其餘頁面維持純色
   el.innerHTML = `
     <h1>RUNESPIRE</h1>
     <p class="sub">Draw the rune · Cast the spell</p>

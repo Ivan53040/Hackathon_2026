@@ -5,6 +5,7 @@
  * 投射物的尺度曲線決定這個遊戲好不好玩 —— 前 70% 慢慢變大，最後 30% 暴衝。
  */
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CONFIG } from '../core/config';
 import { EV, on } from '../core/bus';
 import { LANE_WIDTH } from './camera';
@@ -12,6 +13,7 @@ import { GAP } from './arena';
 import type { MatchState } from '../core/types';
 import type { CoverBuilt, CoverHit, SpellFired } from '../match/events';
 
+const COVER_HEIGHT = 1.6;
 const BUILD_S = 0.2;
 const BUILD_SLOTS = 8;
 const DEBRIS_COUNT = 48;
@@ -62,7 +64,7 @@ export class Actors {
   private walkTime = 0;
   private t = 0;
   private sigil!: THREE.Mesh;
-  private coverPool: THREE.Mesh[] = [];
+  private coverPool: THREE.Group[] = [];
   private projPool: THREE.Sprite[] = [];
   private projectileTexture: THREE.CanvasTexture | null = null;
   private debrisPool: THREE.Mesh[] = [];
@@ -185,6 +187,10 @@ export class Actors {
         () => { /* 沒有這張就算了，不是錯誤 */ },
       );
 
+    // 羅馬場景用新的決鬥姿勢；原素材保留給 ?scene=moon，不覆寫舊動畫資產。
+    // ⚠️ 所有姿勢必須共用同一個畫布幾何：mountSprite 用 idle 的長寬比決定 sprite 平面，
+    // 換一張比例不同的 idle 會把其餘姿勢整個拉寬，腳線也會跳。
+    // 要換角色就六張一起換（含 action atlas），不要只換 idle。
     load('idle', 'wizard.png', true);
     load('charge', 'wizard_charge.png', false);
     load('attack', 'wizard_attack.png', false);
@@ -246,14 +252,17 @@ export class Actors {
   private buildPools(): void {
     // 每幀熱路徑不准配置物件 —— 全部先開好，用 visible 開關
     for (let i = 0; i < 8; i++) {
-      const m = new THREE.Mesh(
-        new THREE.BoxGeometry(1.1, 1.3, 0.5),
+      const group = new THREE.Group();
+      const fallback = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, COVER_HEIGHT, 0.5),
         new THREE.MeshStandardMaterial({ color: tok('--struct-lit'), roughness: 0.8 }),
       );
-      m.visible = false;
-      this.scene.add(m);
-      this.coverPool.push(m);
+      group.add(fallback);
+      group.visible = false;
+      this.scene.add(group);
+      this.coverPool.push(group);
     }
+    this.loadCoverModel();
     const core = document.createElement('canvas');
     core.width = 64;
     core.height = 64;
@@ -292,6 +301,44 @@ export class Actors {
       this.scene.add(chip);
       this.debrisPool.push(chip);
     }
+  }
+
+  private loadCoverModel(): void {
+    new GLTFLoader().load('/models/rune_cover.glb', (gltf) => {
+      if (this.disposed) {
+        this.disposeObject(gltf.scene);
+        return;
+      }
+
+      for (const group of this.coverPool) {
+        // 移除載入期間顯示的單色 fallback，再放入 Blender 模型。
+        for (const child of [...group.children]) {
+          group.remove(child);
+          this.disposeObject(child);
+        }
+
+        const model = gltf.scene.clone(true);
+        model.traverse((node) => {
+          if (!(node instanceof THREE.Mesh)) return;
+          node.castShadow = true;
+          node.receiveShadow = true;
+          // 每一面牆要能獨立進入「受損半透明」狀態，材質不可共用。
+          node.material = Array.isArray(node.material)
+            ? node.material.map((material) => material.clone())
+            : node.material.clone();
+        });
+        group.add(model);
+      }
+    });
+  }
+
+  private disposeObject(root: THREE.Object3D): void {
+    root.traverse((node) => {
+      if (!(node instanceof THREE.Mesh)) return;
+      node.geometry.dispose();
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      for (const material of materials) material.dispose();
+    });
   }
 
   private onCoverBuilt(event: CoverBuilt): void {
@@ -442,14 +489,30 @@ export class Actors {
       mesh.visible = true;
       const build = this.buildScale(c.id);
       mesh.scale.set(1, build, 1);
-      mesh.position.set(toWorldX(c.x), 0.65 * build, c.side === 'me' ? -2.5 : -GAP + 2.5);
-      const mm = mesh.material as THREE.MeshStandardMaterial;
+      mesh.position.set(
+        toWorldX(c.x),
+        COVER_HEIGHT * 0.5 * build,
+        c.side === 'me' ? -2.5 : -GAP + 2.5,
+      );
       // 耐久剩 1 → 半透明 + 微微抖。玩家要看得出「快破了」
       const cracked = c.hp < CONFIG.COVER_HP;
-      mm.transparent = cracked;
-      mm.opacity = cracked ? 0.5 : 1;
+      const steadyPulse = 0.92 + Math.sin(this.t * 2.8 + i * 0.65) * 0.16;
+      const damagedPulse = 0.48 + Math.abs(Math.sin(this.t * 13 + i)) * 0.42;
+      mesh.traverse((node) => {
+        if (!(node instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (const material of materials) {
+          material.transparent = cracked;
+          material.opacity = cracked ? 0.5 : 1;
+          material.depthWrite = !cracked;
+          if (material instanceof THREE.MeshStandardMaterial && material.emissive.getHex() !== 0) {
+            const base = material.userData.coverEmission
+              ?? (material.userData.coverEmission = material.emissiveIntensity);
+            material.emissiveIntensity = base * (cracked ? damagedPulse : steadyPulse);
+          }
+        }
+      });
       mesh.rotation.z = cracked ? Math.sin(this.t * 22) * 0.012 : 0;
-      mm.color.setHex(c.side === 'me' ? this.meColor : this.themColor);
     }
 
     // ── 投射物：朝相機飛 ──
@@ -500,5 +563,6 @@ export class Actors {
     this.actionTexture = null;
     this.projectileTexture?.dispose();
     this.projectileTexture = null;
+    for (const cover of this.coverPool) this.disposeObject(cover);
   }
 }

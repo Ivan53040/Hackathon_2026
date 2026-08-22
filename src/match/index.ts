@@ -22,6 +22,8 @@ import type {
 } from './events';
 
 const STEP = 1 / 60;              // 固定步長。不要用 rAF 的 dt 直接算物理
+// 目標側的牆位於彈道約四分之三處；在牆面立即結算，避免畫面先穿牆才消失。
+const COVER_INTERCEPT_PROGRESS = 0.76;
 
 let state: MatchState = freshState();
 let mode: Mode = 'solo';
@@ -169,17 +171,30 @@ function buildCover(side: Side, x: number): void {
 // ─── 命中 ────────────────────────────────────────
 function advanceProjectiles(dt: number): void {
   const speed = 1000 / CONFIG.PROJ_MS;          // progress 每秒增加多少
-  for (const p of state.projectiles) p.progress += speed * dt;
+  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+    const p = state.projectiles[i];
+    const previousProgress = p.progress;
+    p.progress += speed * dt;
 
-  const landed = state.projectiles.filter((p) => p.progress >= 1);
-  if (!landed.length) return;
-  state.projectiles = state.projectiles.filter((p) => p.progress < 1);
-  for (const p of landed) resolve(p.owner, p.toX);
+    // 用跨越測試而不是要求某一幀剛好落在牆面；低 fps／高速彈也不會穿透。
+    if (
+      previousProgress < COVER_INTERCEPT_PROGRESS &&
+      p.progress >= COVER_INTERCEPT_PROGRESS &&
+      hitTargetCover(p.owner, p.toX)
+    ) {
+      state.projectiles.splice(i, 1);
+      continue;
+    }
+
+    if (p.progress >= 1) {
+      state.projectiles.splice(i, 1);
+      resolve(p.owner, p.toX);
+    }
+  }
 }
 
-function resolve(owner: Side, toX: number): void {
+function hitTargetCover(owner: Side, toX: number): boolean {
   const targetSide: Side = owner === 'me' ? 'them' : 'me';
-  const target = targetSide === 'me' ? state.me : state.them;
 
   // C1：只看**目標那一側**的牆。攻擊者自己的牆從頭到尾不參與判定（＝C2）
   const hits = state.covers
@@ -190,8 +205,14 @@ function resolve(owner: Side, toX: number): void {
     cover.hp -= 1;                              // 撐 COVER_HP 次
     emit(EV.COVER_HIT, { id: cover.id, side: targetSide, x: cover.x, hpLeft: cover.hp } as CoverHit);
     if (cover.hp <= 0) state.covers = state.covers.filter((c) => c.id !== cover.id);
-    return;                                     // 攻擊消失，目標不扣血
+    return true;                                // 攻擊在牆面消失，目標不扣血
   }
+  return false;
+}
+
+function resolve(owner: Side, toX: number): void {
+  const targetSide: Side = owner === 'me' ? 'them' : 'me';
+  const target = targetSide === 'me' ? state.me : state.them;
 
   // 比對 toX，不是 target.x 現在在哪 —— 側身閃得掉，整個遊戲靠這一行成立
   const missBy = Math.abs(target.x - toX);
