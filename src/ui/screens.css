@@ -1,0 +1,81 @@
+/**
+ * 頁面共用樣式　[Wesley]
+ * 只用 tokens.css 的變數，不准寫死 hex 與 px。
+ */
+.screen {
+  position: absolute; inset: 0; z-index: 10;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: var(--s4);
+  background: var(--void);
+  padding: var(--s4);
+}
+.screen[hidden] { display: none; }
+
+.screen h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-2xl);
+  letter-spacing: .08em;
+  color: var(--me);
+  text-align: center;
+}
+.screen .sub {
+  margin: calc(var(--s3) * -1) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+
+.actions { display: flex; flex-direction: column; gap: var(--s2); width: min(340px, 80vw); }
+
+.btn {
+  font-family: var(--font-ui);
+  font-size: var(--t-md);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--struct);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--parchment);
+  cursor: pointer;
+  transition: border-color var(--d-fast) var(--ease-out),
+              color var(--d-fast) var(--ease-out),
+              background var(--d-fast) var(--ease-out);
+}
+.btn:hover { border-color: var(--struct-lit); color: var(--me-hot); }
+/* 一主三次：judge 站在那裡不用想該按哪個 */
+.btn.primary {
+  background: var(--me); border-color: var(--me); color: var(--void);
+  font-weight: 600;
+}
+.btn.primary:hover { background: var(--me-hot); border-color: var(--me-hot); color: var(--void); }
+.btn:disabled { opacity: .4; cursor: default; }
+
+.field {
+  font-family: var(--font-mono);
+  font-size: var(--t-xl);
+  letter-spacing: .3em;
+  text-align: center; text-transform: uppercase;
+  padding: var(--s3);
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--struct);
+  border-radius: var(--radius);
+  color: var(--me);
+}
+.field:focus { outline: none; border-color: var(--me); }
+
+.code {
+  font-family: var(--font-mono);
+  font-size: var(--t-2xl);
+  letter-spacing: .35em;
+  color: var(--me);
+}
+.note { font-size: var(--t-sm); color: var(--dim); max-width: 46ch; text-align: center; line-height: 1.7; }
+.err  { font-size: var(--t-sm); color: #E4705E; min-height: 1.4em; text-align: center; }
+
+.runes { display: flex; gap: var(--s4); font-family: var(--font-mono); color: var(--dim); }
+.runes b { color: var(--me); font-size: var(--t-lg); display: block; }
