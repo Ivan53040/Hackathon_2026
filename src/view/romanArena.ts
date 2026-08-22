@@ -19,12 +19,12 @@ let braziers: Brazier[] = [];
 // 火把繞著場邊排。|x| >= 4.4 全部在 lane 之外，擋不到 z = −7.5 的對手。
 // 有 light 的才吃光照成本；其餘只有視覺火焰，免費。
 const BRAZIER_SPOTS: Array<{ x: number; z: number; lit: boolean }> = [
-  { x: -5.1, z: -2.4, lit: true },
-  { x: 5.1, z: -2.4, lit: true },
-  { x: -5.3, z: -4.6, lit: true },
-  { x: 5.3, z: -4.6, lit: true },
-  { x: -4.9, z: -8.2, lit: false },
-  { x: 4.9, z: -8.2, lit: false },
+  { x: -6.4, z: -3.2, lit: true },
+  { x: 6.4, z: -3.2, lit: true },
+  { x: -6.7, z: -5.5, lit: true },
+  { x: 6.7, z: -5.5, lit: true },
+  { x: -6.2, z: -9.4, lit: false },
+  { x: 6.2, z: -9.4, lit: false },
 ];
 
 /** 顏色一律從 tokens.css 讀（CLAUDE.md / HANDOFF §7）。夜間版不再寫死 hex。 */
@@ -280,7 +280,7 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
   //   對手頭頂 (y=2.6, z=-7.5) 的畫面比例 = (2.6-1.6)/7.5 = 0.133
   //   FOV 55° 的可視上緣比例 = tan(27.5°) = 0.521
   //   海報連吊桿必須整個落在 0.157 ~ 0.490 之間 —— 高過人頭，又不被畫面切掉
-  const POSTER_W = 7.2, POSTER_H = 4.05, POSTER_Y = 5.8, POSTER_Z = -13;
+  const POSTER_W = 7.2, POSTER_H = 4.05, POSTER_Y = 5.8, POSTER_Z = -15.2;
   new THREE.TextureLoader().load('/cover.jpg', (tex) => {
     if (!root || generation !== loadGeneration) { tex.dispose(); return; }
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -316,6 +316,10 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
       return;
     }
     gltf.scene.name = 'blender-roman-architecture';
+    // Expand the architectural shell without changing the combat coordinates.
+    // The backward shift keeps near pillars/banners out of the player's peripheral view.
+    gltf.scene.scale.set(1.2, 1, 1.2);
+    gltf.scene.position.z = -1.35;
     gltf.scene.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return;
       node.castShadow = true;
