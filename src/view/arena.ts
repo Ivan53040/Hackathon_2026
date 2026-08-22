@@ -9,9 +9,9 @@ import { LANE_WIDTH } from './camera';
 
 const GAP = 8.5;   // 兩邊的距離。太遠對手會小到觀眾在 10 公尺外讀不到
 
-function tok(name: string, fallback: string): THREE.Color {
+function tok(name: string): THREE.Color {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return new THREE.Color(v || fallback);
+  return new THREE.Color(v);
 }
 
 /** 垂直漸層當天空。用 canvas 貼圖比寫 shader 省事，而且改色只要改 token */
@@ -33,9 +33,11 @@ function skyTexture(top: THREE.Color, bottom: THREE.Color): THREE.Texture {
 export interface ArenaRefs { stars: THREE.Points; moon: THREE.Mesh; }
 
 export function buildArena(scene: THREE.Scene): ArenaRefs {
-  const voidC = tok('--void', '#0E182F');
-  const stone = tok('--struct', '#5C6EAE');
-  const lit = tok('--struct-lit', '#8FA0D8');
+  const voidC = tok('--void');
+  const stone = tok('--struct');
+  const lit = tok('--struct-lit');
+  const core = tok('--spell-core');
+  const me = tok('--me');
 
   scene.background = voidC;
   scene.fog = new THREE.Fog(voidC.getHex(), GAP * 0.9, GAP * 3.4);
@@ -65,21 +67,21 @@ export function buildArena(scene: THREE.Scene): ArenaRefs {
   starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const stars = new THREE.Points(
     starGeo,
-    new THREE.PointsMaterial({ color: 0xE6F2FF, size: 0.34, sizeAttenuation: true, transparent: true, opacity: 0.75, fog: false }),
+    new THREE.PointsMaterial({ color: core.getHex(), size: 0.34, sizeAttenuation: true, transparent: true, opacity: 0.75, fog: false }),
   );
   scene.add(stars);
 
   // ── 月亮：給畫面一個焦點，也給遠方一個尺度參考 ──
   const moon = new THREE.Mesh(
     new THREE.CircleGeometry(2.1, 40),
-    new THREE.MeshBasicMaterial({ color: 0xE8EEFF, fog: false, transparent: true, opacity: 0.92 }),
+    new THREE.MeshBasicMaterial({ color: core.getHex(), fog: false, transparent: true, opacity: 0.92 }),
   );
   moon.position.set(-20, 21, -44);
   moon.lookAt(0, 1.6, 0);
   scene.add(moon);
   const halo = new THREE.Mesh(
     new THREE.CircleGeometry(4.6, 40),
-    new THREE.MeshBasicMaterial({ color: 0xAEC3F0, fog: false, transparent: true, opacity: 0.1 }),
+    new THREE.MeshBasicMaterial({ color: lit.getHex(), fog: false, transparent: true, opacity: 0.1 }),
   );
   halo.position.copy(moon.position).setZ(moon.position.z - 0.2);
   halo.lookAt(0, 1.6, 0);
@@ -136,11 +138,11 @@ export function buildArena(scene: THREE.Scene): ArenaRefs {
   }
 
   // ── 燈光 ──
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-  const key = new THREE.DirectionalLight(0xDCE6FF, 0.85);
+  scene.add(new THREE.AmbientLight(core.getHex(), 0.5));
+  const key = new THREE.DirectionalLight(core.getHex(), 0.85);
   key.position.set(-4, 8, -2);
   scene.add(key);
-  const rim = new THREE.DirectionalLight(tok('--me', '#D4AF37').getHex(), 0.35);
+  const rim = new THREE.DirectionalLight(me.getHex(), 0.35);
   rim.position.set(3, 2, 4);
   scene.add(rim);
 
