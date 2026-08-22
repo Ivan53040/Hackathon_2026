@@ -13,6 +13,7 @@ import { CONFIG } from '../core/config';
 import { getStroke } from '../runes';
 import { FpsCamera } from './camera';
 import { buildArena, GAP, type ArenaRefs } from './arena';
+import { buildScenery, updateScenery, disposeScenery } from './scenery';
 import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
 import { drawHud } from '../ui/hud';
@@ -93,6 +94,7 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   scene = new THREE.Scene();
   fps = new FpsCamera(innerWidth / innerHeight);
   arena = buildArena(scene);
+  buildScenery(scene);            // 決鬥場本身，見 SCENE-BRIEF.md（Codex 的檔）
   actors = new Actors(scene);
   runeEffects = new RuneEffects();
 
@@ -132,6 +134,7 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
   arena.stars.rotation.y = clock * 0.004;
   (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
+  updateScenery(clock, dt);
   renderer.render(scene, fps.cam);
 
   ctx.clearRect(0, 0, innerWidth, innerHeight);
@@ -247,6 +250,7 @@ export function disposeView(): void {
   removeEventListener('resize', onResize);
   actors.dispose();
   runeEffects.dispose();
+  disposeScenery();
   disposeWebcamPip();
   disposeScene();
   renderer?.dispose();
