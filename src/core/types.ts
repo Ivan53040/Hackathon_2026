@@ -102,9 +102,24 @@ export function toLocalView(s: WireState, myRole: Role): MatchState {
 
 // ─── 對手抽象：BotOpponent 與 RemoteOpponent 完全一致 ───
 // 這個介面存在的唯一理由：連線爆炸時一行換成 bot，demo 不中斷
+
+/** 對手這一幀想做什麼。注意是「意圖」不是「狀態」—— 狀態由 match/ 模擬出來 */
+export interface OpponentIntent {
+  moveAxis: number;        // −1 左 / 0 / 1 右
+  cast: Spell | null;      // 這一幀要出的招，沒有就是 null
+  casting: boolean;        // 正在畫（給起手光暈用）
+  castProgress: number;    // 0..1
+}
+
+export const IDLE_INTENT: OpponentIntent = {
+  moveAxis: 0, cast: null, casting: false, castProgress: 0,
+};
+
 export interface Opponent {
   readonly kind: 'bot' | 'remote';
   update(dt: number, view: MatchState): void;
+  /** 每幀讀一次。回傳後 cast 會被清掉，不會重複觸發 */
+  consume(): OpponentIntent;
   dispose(): void;
 }
 

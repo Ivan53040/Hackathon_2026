@@ -19,8 +19,10 @@ export const EV = {
   MP_CHANGE:    'match:mp',
   MATCH_START:  'match:start',
   MATCH_OVER:   'match:over',
-  NET_STATE:    'net:state',
-  NET_LOST:     'net:lost',
+  NET_STATE:    'net:state',      // host 廣播的權威 WireState
+  NET_PEER:     'net:peer',       // 對手進房
+  NET_PEER_MSG: 'net:peerMsg',    // 對手的 input / cast，RemoteOpponent 在聽
+  NET_LOST:     'net:lost',       // 斷線 → 換成 bot，比賽不中斷
   MODE_CHANGE:  'app:mode',
 } as const;
 
