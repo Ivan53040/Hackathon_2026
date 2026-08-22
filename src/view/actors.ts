@@ -19,9 +19,12 @@ const DEBRIS_LIFE_S = 0.55;
 const ACTION_COLS = 8;
 const ACTION_ROWS = 4;
 const ACTION_FRAMES = ACTION_COLS * ACTION_ROWS;
-// Atlas 的爆光在第 18–19 格。蓄力要停在爆光前一格，
+// Atlas 的爆光在第 18–19 格，蓄力必須停在爆光之前，
 // 否則「他要出手了」的預警會比實際出手早四分之一拍。
-const ACTION_RELEASE_FRAME = 17;
+// 停在 15 而不是 17：舉杖過頂這個姿勢比 376px 的 tile 高 7 列，
+// f16 / f17 的水晶尖端在生成當下就被格子切平了，f14 / f15 才是完整的。
+// 收招會經過那兩格，但每格只有約 30ms，看不出來。
+const ACTION_RELEASE_FRAME = 15;
 const ACTION_RECOVER_S = 0.5;
 // 側面跑步 atlas 已停用 —— 第一人稱只從正面看對手，換成側視會在每次起步時轉 90°。
 // 移動改用連續量：帶符號的傾斜 + 踏步起伏，沒有任何影格切換。
