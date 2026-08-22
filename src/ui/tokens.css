@@ -6,6 +6,37 @@
  *
  * ⚠️ 兩處刻意偏離概念圖，理由寫在旁邊 —— 都是為了投影機上的可讀性。
  */
+
+/*
+ * ── 字型：自架，不 link Google Fonts ──────────────
+ *
+ * 為什麼要自架：會場網路擋掉或斷線時，link 過去的字型會直接掉回系統襯線，
+ * 整個美術方向當場報廢（frontend/PLAN.md §4.4）。
+ *
+ * 🔴 這一段之前是缺的。`--font-display` 宣告 Cormorant Garamond，
+ *    但 public/fonts/ 是空的、沒有任何 @font-face，document.fonts.size === 0 ——
+ *    標題實際上是用 Georgia 在畫（.design/04-decision.md E2 早就記過這件事）。
+ *
+ * 兩支都是可變字重（單一檔案涵蓋整個 weight 軸），latin 子集，共 56KB。
+ * 授權 SIL OFL 1.1，可自由嵌入與散布。
+ */
+@font-face {
+  font-family: "Cinzel";
+  src: url("/fonts/cinzel-latin-var.woff2") format("woff2-variations"),
+       url("/fonts/cinzel-latin-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  /* swap：字型還沒到就先用系統襯線頂著，不要留白 */
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/jetbrains-mono-latin-var.woff2") format("woff2-variations"),
+       url("/fonts/jetbrains-mono-latin-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
   /* ── 底 ─────────────────────────────────────
      概念圖的 DEEP BLUE。比純黑亮，投影機上反而更穩 */
@@ -41,11 +72,18 @@
   --parchment:   #E6F2FF;
   --dim:         #7C88AB;
 
-  /* ── 字體 ───────────────────────────────────*/
-  --font-display: "Cormorant Garamond", Georgia, "Songti TC", "Noto Serif TC", serif;
-  --font-ui:      system-ui, -apple-system, "PingFang TC", "Noto Sans TC", sans-serif;
+  /* ── 字體 ───────────────────────────────────
+     只有兩支，沒有第三支。
+     Cinzel 是羅馬碑刻體 —— 跟 key art 的競技場、跟首頁那塊石碑是同一件事，
+     而且它本來就是為全大寫標題設計的，字距不用再硬調。
+     JetBrains Mono 本來就是這個專案的第二個聲音（kicker / 房號 / HUD），
+     只是從來沒被載進來過。
+     ⚠️ system-ui 已移除：襯線標題配 San Francisco 按鈕，是「這是網頁不是遊戲」
+        最大的一個破綻。UI 一律走 mono。*/
+  --font-display: "Cinzel", Georgia, "Songti TC", "Noto Serif TC", serif;
   /* 尾端補 Han face：等寬堆疊目前只跑英文，但 HUD 之後若混中文會逐字掉字 */
   --font-mono:    "JetBrains Mono", ui-monospace, Menlo, "PingFang TC", "Noto Sans TC", monospace;
+  --font-ui:      var(--font-mono);
 
   /* ── 字級 ───────────────────────────────────*/
   --t-xs: 11px; --t-sm: 13px; --t-md: 15px;

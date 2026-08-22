@@ -154,6 +154,9 @@
   color: var(--me);
 }
 .note { font-size: var(--t-sm); color: var(--dim); max-width: 46ch; text-align: center; line-height: 1.7; }
+/* 等寬體比比例字寬約 15%，46ch 會讓句子在片語中間斷行（"in the air with / your wand."）。
+   碑上的提示改成吃滿碑寬、字級降一級，斷行才落在句號上。 */
+.stele .note { max-width: 100%; font-size: var(--t-xs); line-height: 1.9; letter-spacing: .02em; }
 .stele .note { margin: 0; color: var(--struct-lit); }
 
 /*
