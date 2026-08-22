@@ -6,11 +6,26 @@
   let stroke = [];
   let lastTip = null;
   let parentArmed = false;
+  let lastPhase = '';
+
+  window.__wandTestGate = { armed: false };
 
   const send = (type, payload = {}) => {
     window.parent.postMessage({ source: CHANNEL, type, ...payload }, location.origin);
   };
   const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  function shapeTestActive() {
+    const overlay = document.querySelector('#shape-test');
+    return Boolean(overlay && !overlay.classList.contains('hidden'));
+  }
+
+  function publishPhase() {
+    const phase = !parentArmed ? 'align' : shapeTestActive() ? 'runes' : 'positioning';
+    if (phase === lastPhase) return;
+    lastPhase = phase;
+    send('phase', { phase });
+  }
 
   function attachTracker() {
     const next = window.__wandTracker;
@@ -33,7 +48,7 @@
   }
 
   function begin(event) {
-    if (!parentArmed || (event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') || event.repeat || drawing) return;
+    if (!parentArmed || !shapeTestActive() || (event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') || event.repeat || drawing) return;
     drawing = true;
     stroke = lastTip ? [{ ...lastTip }] : [];
   }
@@ -55,20 +70,30 @@
     if (event.origin !== location.origin || event.data?.source !== CHANNEL) return;
     if (event.data.type === 'arm') {
       parentArmed = true;
+      window.__wandTestGate.armed = true;
       drawing = false;
       stroke = [];
+      publishPhase();
     } else if (event.data.type === 'reset') {
       parentArmed = false;
+      window.__wandTestGate.armed = false;
       drawing = false;
       stroke = [];
+      publishPhase();
     }
   });
+
+  window.addEventListener('keydown', (event) => {
+    if (event.code !== 'Space' || event.repeat) return;
+    event.preventDefault();
+    send('space');
+  }, true);
 
   // Install before the compiled test UI so its capture listener cannot hide the event from us.
   window.addEventListener('keydown', begin, true);
   window.addEventListener('keyup', finish, true);
   window.addEventListener('blur', () => finish(), true);
-  const poll = () => { attachTracker(); requestAnimationFrame(poll); };
+  const poll = () => { attachTracker(); publishPhase(); requestAnimationFrame(poll); };
   poll();
   window.addEventListener('pagehide', () => unsubscribe?.(), { once: true });
 })();

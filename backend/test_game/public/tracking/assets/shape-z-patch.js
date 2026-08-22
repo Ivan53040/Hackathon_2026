@@ -437,8 +437,6 @@ function install() {
     if (event.data?.type === 'arm') {
       parentArmed = true;
       resetProgress();
-      document.querySelector('#shape-test')?.classList.remove('hidden');
-      setDrawState('HOLD SHIFT TO DRAW · RELEASE TO DETECT', 'idle');
     } else if (event.data?.type === 'reset') {
       parentArmed = false;
       resetProgress();
