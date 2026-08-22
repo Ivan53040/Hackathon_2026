@@ -10,12 +10,13 @@ import { EV, emit, on } from './core/bus';
 import { initInput, isCasting, getMoveAxis } from './core/input';
 import { getFrame, setSource, currentKind } from './tracking/tracker';
 import { initRunes, disposeRunes } from './runes';
-import { initMatch, tickMatch, createBotOpponent } from './match';
+import { initMatch, tickMatch, createBotOpponent, disposeMatch } from './match';
 import { initView, renderView } from './view';
 import { show, currentScreen } from './pages';
 import { buildLanding } from './pages/landing';
 import { buildLobby, enterLobby } from './pages/lobby';
 import { buildResults, enterResults } from './pages/results';
+import { buildPause, openPause, closePause, isPaused } from './pages/pause';
 import { connect, createRemoteOpponent, disconnect, sendInput, sendCast, sendStart, isHost } from './net';
 import type { MatchState, Mode } from './core/types';
 
@@ -58,6 +59,8 @@ on(EV.NET_PEER_MSG, (p) => {
   if ((p as { type?: string })?.type === 'start' && !isHost() && currentScreen() !== 'game') startMatch('guest');
 });
 buildResults(app, () => startMatch(mode), () => { disconnect(); show('landing'); });
+// 對局中的唯一退出路徑（02-journey-ia.md：返回路徑必須存在）
+buildPause(app, { onLeave: () => { disconnect(); disposeMatch(); } });
 
 function startMatch(m: Mode): void {
   mode = m;
@@ -86,6 +89,10 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Digit1') void setSource('mediapipe');
   if (e.code === 'Digit2' || e.code === 'KeyM') void setSource('mouse');
   if (e.code === 'KeyB' && currentScreen() === 'game') startMatch('solo');   // 強制切 bot
+  // ESC 開選單而不是直接退出 —— 誤按一下就被踢出對局，在台上是災難
+  if (e.code === 'Escape' && currentScreen() === 'game') {
+    isPaused() ? closePause() : openPause(mode === 'solo');
+  }
 });
 
 // ─── 啟動 ─────────────────────────────────────────
@@ -114,7 +121,8 @@ function loop(now: number): void {
     const f = getFrame();
     emit(EV.WAND_FRAME, f);
 
-    const s = tickMatch(dt);
+    // solo 時選單真的把世界停住；連線對戰停不了對手，所以照跑（選單上有寫）
+    const s = tickMatch(isPaused() && mode === 'solo' ? 0 : dt);
 
     // 15Hz 送走位意圖給對手。不節流會塞爆
     if (mode !== 'solo' && now - netAt > 1000 / CONFIG.TICK_HZ) {

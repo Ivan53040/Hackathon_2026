@@ -155,6 +155,21 @@
 }
 .note { font-size: var(--t-sm); color: var(--dim); max-width: 46ch; text-align: center; line-height: 1.7; }
 .stele .note { margin: 0; color: var(--struct-lit); }
+
+/*
+ * 窄螢幕上封面被擠成兩條細邊，等於是縮小版桌機。
+ * 但這個遊戲在手機上真的玩不了 —— 需要 webcam、一支筆、以及 A/D 鍵盤。
+ * 所以不做行動版體驗，改成把限制講出來，讓那一頁有它自己的用處。
+ */
+.desktop-only { display: none; }
+@media (max-width: 48rem) {
+  .desktop-only {
+    display: block;
+    color: var(--me);
+    border-top: var(--hairline) solid color-mix(in srgb, var(--me) 30%, transparent);
+    padding-top: var(--s3);
+  }
+}
 .err  { font-size: var(--t-sm); color: #E4705E; min-height: 1.4em; text-align: center; }
 
 /*
@@ -181,3 +196,47 @@
   letter-spacing: .22em;
   text-transform: uppercase;
 }
+
+
+/* ── 對局中的選單（Esc）───────────────────────────
+ * 疊在對局上面，不取代它 —— 玩家要看得到自己丟下的是什麼場面。
+ * 卡片用跟首頁石碑同一套語彙：硬邊、金髮絲線、--void 為底。
+ */
+.pause {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--void) 72%, transparent);
+  padding: var(--s4);
+}
+.pause[hidden] { display: none; }
+
+.pause-card {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--s3);
+  width: min(24rem, 88vw);
+  padding: var(--s5) var(--s4);
+  background: color-mix(in srgb, var(--void) 96%, transparent);
+  border-top: var(--hairline) solid color-mix(in srgb, var(--me) 55%, transparent);
+  border-bottom: var(--hairline) solid color-mix(in srgb, var(--them-hot) 55%, transparent);
+}
+.pause-card h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 400;
+  letter-spacing: .045em;
+  color: var(--me);
+}
+/* 連線對戰停不了，這一行要講清楚，否則玩家會邊看選單邊被打 */
+.pause-note {
+  margin: 0; text-align: center;
+  font-size: var(--t-sm);
+  color: var(--struct-lit);
+  max-width: 30ch;
+  line-height: 1.6;
+}
+.pause .actions { width: 100%; }
+.pause .btn:not(.primary) {
+  border-color: color-mix(in srgb, var(--struct) 60%, transparent);
+}
+.pause .note { margin: 0; font-size: var(--t-xs); letter-spacing: .12em; text-transform: uppercase; }
