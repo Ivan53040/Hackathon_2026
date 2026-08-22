@@ -19,11 +19,17 @@ const DEBRIS_LIFE_S = 0.55;
 const ACTION_COLS = 8;
 const ACTION_ROWS = 4;
 const ACTION_FRAMES = ACTION_COLS * ACTION_ROWS;
-const ACTION_RELEASE_FRAME = 23;
+// Atlas 的爆光在第 18–19 格。蓄力要停在爆光前一格，
+// 否則「他要出手了」的預警會比實際出手早四分之一拍。
+const ACTION_RELEASE_FRAME = 17;
 const ACTION_RECOVER_S = 0.5;
-const MOVE_COLS = 6;
-const MOVE_ROWS = 4;
-const MOVE_FRAMES = MOVE_COLS * MOVE_ROWS;
+// 側面跑步 atlas 已停用 —— 第一人稱只從正面看對手，換成側視會在每次起步時轉 90°。
+// 移動改用連續量：帶符號的傾斜 + 踏步起伏，沒有任何影格切換。
+const LEAN_MAX = 0.055;
+const LEAN_SMOOTH = 9;
+const STEP_RATE = 5.5;
+const STEP_BOB = 0.055;
+const IDLE_BOB = 0.035;
 
 const toWorldX = (x: number) => (x - 0.5) * LANE_WIDTH;
 
@@ -41,8 +47,6 @@ export class Actors {
   private poses: Partial<Record<Pose, THREE.Texture>> = {};
   private actionTexture: THREE.Texture | null = null;
   private actionFrame = -1;
-  private moveTexture: THREE.Texture | null = null;
-  private moveFrame = -1;
   private wasOpponentCasting = false;
   private recovering = false;
   private recoverAge = 0;
@@ -51,8 +55,7 @@ export class Actors {
   private attackUntil = 0;
   private buildUntil = 0;
   private previousOpponentX = Number.NaN;
-  private moveBlend = 0;
-  private moveDirection = 1;
+  private moveLean = 0;          // −1..1，帶符號且平滑；反向時經過 0，不會瞬間翻面
   private walkTime = 0;
   private t = 0;
   private sigil!: THREE.Mesh;
@@ -201,22 +204,6 @@ export class Actors {
       undefined,
       () => { /* 靜態姿勢仍可完整遊玩 */ },
     );
-    loader.load(
-      '/anim/wizard_move_atlas.png',
-      (tex) => {
-        if (this.disposed) { tex.dispose(); return; }
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.wrapS = THREE.ClampToEdgeWrapping;
-        tex.wrapT = THREE.ClampToEdgeWrapping;
-        tex.generateMipmaps = false;
-        tex.minFilter = THREE.LinearFilter;
-        tex.magFilter = THREE.LinearFilter;
-        tex.repeat.set(1 / MOVE_COLS, 1 / MOVE_ROWS);
-        this.moveTexture = tex;
-      },
-      undefined,
-      () => { /* 程式化步伐仍會運作 */ },
-    );
   }
 
   private mountSprite(tex: THREE.Texture): void {
@@ -251,18 +238,6 @@ export class Actors {
       1 - (Math.floor(frame / ACTION_COLS) + 1) / ACTION_ROWS,
     );
     this.applyPoseTexture(this.actionTexture);
-  }
-
-  private applyMoveFrame(rawFrame: number): void {
-    if (!this.sprite || !this.moveTexture) return;
-    const frame = ((rawFrame | 0) % MOVE_FRAMES + MOVE_FRAMES) % MOVE_FRAMES;
-    if (frame === this.moveFrame && (this.sprite.material as THREE.MeshBasicMaterial).map === this.moveTexture) return;
-    this.moveFrame = frame;
-    this.moveTexture.offset.set(
-      (frame % MOVE_COLS) / MOVE_COLS,
-      1 - (Math.floor(frame / MOVE_COLS) + 1) / MOVE_ROWS,
-    );
-    this.applyPoseTexture(this.moveTexture);
   }
 
   private buildPools(): void {
@@ -368,14 +343,15 @@ export class Actors {
     const dx = Number.isFinite(this.previousOpponentX) ? s.them.x - this.previousOpponentX : 0;
     this.previousOpponentX = s.them.x;
     const moveSpeed = dt > 1e-4 ? dx / dt : 0;
-    if (Math.abs(moveSpeed) > 0.015) this.moveDirection = moveSpeed < 0 ? -1 : 1;
-    const moveTarget = Math.min(1, Math.abs(moveSpeed) / CONFIG.MOVE_SPEED);
-    this.moveBlend += (moveTarget - this.moveBlend) * Math.min(1, dt * 12);
-    // 24 格素材以約 6 fps 播放；原本最高接近 30 fps，看起來像卡格抖動。
-    if (this.moveBlend > 0.01) this.walkTime += dt * 1.65;
-    const idleBob = Math.sin(this.t * 1.6) * 0.035;
-    const stepBob = Math.abs(Math.sin(this.walkTime)) * 0.055;
-    const bob = idleBob * (1 - this.moveBlend) + stepBob * this.moveBlend;
+    // 帶符號的目標值。反向時 lean 會經過 0 —— 傾斜先回正再倒向另一邊，
+    // 中間沒有任何一格是跳的，這是「移動看起來連續」的關鍵。
+    const leanTarget = Math.max(-1, Math.min(1, moveSpeed / CONFIG.MOVE_SPEED));
+    this.moveLean += (leanTarget - this.moveLean) * Math.min(1, dt * LEAN_SMOOTH);
+    const moveAmount = Math.abs(this.moveLean);
+    if (moveAmount > 0.01) this.walkTime += dt * STEP_RATE * (0.6 + moveAmount * 0.4);
+    const idleBob = Math.sin(this.t * 1.6) * IDLE_BOB;
+    const stepBob = Math.abs(Math.sin(this.walkTime)) * STEP_BOB;
+    const bob = idleBob * (1 - moveAmount) + stepBob * moveAmount;
 
     if (this.sprite) {
       const sm = this.sprite.material as THREE.MeshBasicMaterial;
@@ -405,15 +381,11 @@ export class Actors {
         this.applyActionFrame(ACTION_RELEASE_FRAME + Math.round(p * (ACTION_FRAMES - 1 - ACTION_RELEASE_FRAME)));
         if (p >= 1) this.recovering = false;
         this.pose = 'charge';
-      } else if (this.moveTexture && this.moveBlend > 0.08) {
-        // walkTime 是連續相位；左右方向只鏡像，不重啟循環，因此轉向不會卡格。
-        this.applyMoveFrame(Math.floor((this.walkTime / (Math.PI * 2)) * MOVE_FRAMES));
-        this.pose = 'idle';
       } else {
         const want: Pose = this.t < this.buildUntil ? 'build'
           : this.t < this.attackUntil ? 'attack'
             : s.them.casting ? 'charge' : 'idle';
-        if (want !== this.pose || sm.map === this.actionTexture || sm.map === this.moveTexture) {
+        if (want !== this.pose || sm.map === this.actionTexture) {
           const tex = this.poses[want] ?? this.poses.idle;
           if (tex) this.applyPoseTexture(tex);
         }
@@ -422,8 +394,8 @@ export class Actors {
 
       const h = (this.sprite.geometry as THREE.PlaneGeometry).parameters.height;
       this.sprite.position.set(wx, h / 2 - 0.05 + bob, -GAP + 1);
-      // 所有姿勢共用相同世界尺寸；左右移動只鏡像，不能改變角色大小。
-      this.sprite.scale.set(this.moveDirection, 1, 1);
+      // 素材是正面視角，鏡像會讓法杖瞬間換手 —— 尺度固定，行進方向只用傾斜表示。
+      this.sprite.scale.set(1, 1, 1);
       this.sprite.visible = s.them.hp > 0;
 
       // 沒有 charge 素材時，用染色代替 —— 起手的預警不能沒有
@@ -434,7 +406,7 @@ export class Actors {
       // 沒有 hit 素材時，用向後傾代替
       const hitTilt = isHit && !this.poses.hit ? -0.14 * ((this.hitUntil - this.t) / 0.3) : 0;
       const actionWeight = s.them.casting || this.recovering ? 0.2 : 1;
-      const moveTilt = -this.moveDirection * this.moveBlend * 0.055 * actionWeight;
+      const moveTilt = -this.moveLean * LEAN_MAX * actionWeight;
       this.sprite.rotation.z = hitTilt + moveTilt;
 
       this.opponent.visible = false;
@@ -443,7 +415,7 @@ export class Actors {
       this.opponent.position.x = wx;
       this.opponent.position.y = bob;
       this.opponent.position.z = -GAP + 1 - hit * 0.18;
-      this.opponent.rotation.z = -hit * 0.12 - this.moveDirection * this.moveBlend * 0.055;
+      this.opponent.rotation.z = -hit * 0.12 - this.moveLean * LEAN_MAX;
       this.opponent.visible = s.them.hp > 0;
     }
     // 起手時杖頂水晶亮起（幾何造型用）
@@ -523,8 +495,6 @@ export class Actors {
     this.poses = {};
     this.actionTexture?.dispose();
     this.actionTexture = null;
-    this.moveTexture?.dispose();
-    this.moveTexture = null;
     this.projectileTexture?.dispose();
     this.projectileTexture = null;
   }
