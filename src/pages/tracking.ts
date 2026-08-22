@@ -143,12 +143,43 @@ function applyPlayerMode(frame: HTMLIFrameElement): void {
   } catch { /* 注不進去就維持 lab 原樣，至少還能校準 */ }
 }
 
+/*
+ * 把 Shift 轉發進 iframe。
+ *
+ * ⚠️ bridge.js 是在 **iframe 自己的 window** 上聽 keydown/keyup 的。
+ * 只要使用者點過父層的任何東西（我們的按鈕、面板、甚至空白處），焦點就在父層，
+ * iframe 收不到鍵盤事件 —— 於是「按住 Shift 畫符文」永遠不會觸發，
+ * 校準卡在畫手勢那一步過不去。
+ *
+ * 用轉發而不是 frame.focus()：focus 會被下一次點擊搶走，轉發不會。
+ * 只轉 Shift，其他按鍵不碰，免得干擾 lab 自己的快捷鍵。
+ */
+function forwardShift(frame: HTMLIFrameElement): () => void {
+  const relay = (event: KeyboardEvent): void => {
+    if (event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') return;
+    const win = frame.contentWindow;
+    if (!win || event.target === win) return;
+    try {
+      win.dispatchEvent(new KeyboardEvent(event.type, {
+        code: event.code, key: event.key, repeat: event.repeat, bubbles: true,
+      }));
+    } catch { /* 跨源就算了 */ }
+  };
+  addEventListener('keydown', relay, true);
+  addEventListener('keyup', relay, true);
+  return () => {
+    removeEventListener('keydown', relay, true);
+    removeEventListener('keyup', relay, true);
+  };
+}
+
 export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => void): void {
   const frame = document.createElement('iframe');
   frame.className = 'tracking-runtime parked';
   frame.title = 'Wand tracking calibration';
   frame.allow = 'camera';
   frame.addEventListener('load', () => applyPlayerMode(frame));
+  const stopShiftRelay = forwardShift(frame);
   root.appendChild(frame);
   trackingFrame = frame;
 
@@ -242,8 +273,9 @@ export function buildTracking(root: HTMLElement, onEnter: (usePen: boolean) => v
   };
   addEventListener('message', onMessage);
 
-  enter.addEventListener('click', () => { park(); onEnter(true); });
+  enter.addEventListener('click', () => { stopShiftRelay(); park(); onEnter(true); });
   mouse.addEventListener('click', () => {
+    stopShiftRelay();
     clearExternalFrame();
     park();
     onEnter(false);
