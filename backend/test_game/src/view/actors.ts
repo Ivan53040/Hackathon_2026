@@ -520,6 +520,7 @@ export class Actors {
       const spr = this.projPool[i];
       const p = s.projectiles[i];
       if (!p) { spr.visible = false; continue; }
+      if (p.spell !== 'attack') { spr.visible = false; continue; }
       spr.visible = true;
       const toward = p.owner === 'them';
       const t = Math.min(Math.max(p.progress, 0), 1);

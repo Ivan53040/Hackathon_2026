@@ -178,13 +178,13 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
     color: tok('--struct-lit'), roughness: 0.62, metalness: 0.08,
   });
   for (const z of [0.6, -GAP]) {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH + 4, 0.6, 3.2), platformMaterial);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2), platformMaterial);
     slab.position.set(0, -0.3, z);
     slab.castShadow = true;
     slab.receiveShadow = true;
     root.add(slab);
 
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH + 4, 0.11, 0.24), platformEdgeMaterial);
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.11, 0.24), platformEdgeMaterial);
     edge.position.set(0, 0.055, z + (z < -1 ? 1.6 : -1.6));
     root.add(edge);
   }

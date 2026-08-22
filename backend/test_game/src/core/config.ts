@@ -21,26 +21,47 @@ export const CONFIG = {
   MIN_STROKE_POINTS: 8,
   MAX_STROKE_MS: 4000,
   RESAMPLE_N: 64,
-  CORNER_ANGLE_DEG: 55,         // 角點判定：3 角 → △ 攻擊，4 角 → □ 建造
+  CORNER_ANGLE_DEG: 55,         // legacy tuning retained for the tracking page
 
   // ── Match [P2] ────────────────────────────────
   HP_MAX: 10,
-  DMG_ATTACK: 2,
+  DMG_ATTACK: 1,
+  DMG_ROCK: 2,
+  DMG_SPIKE: 2,
   PROJ_MS: 800,                 // 投射物飛行時間
-  HIT_WIDTH: 0.10,              // 命中判定寬度。太窄玩家會覺得「明明中了」
+  ROCK_FALL_MS: 900,            // 石頭由敵人頭頂落下的時間
+  GRID_CELLS: 10,               // 橫向戰場分成十格；技能仍維持 1 格 / 3 格範圍
+  GRID_CELL: 0.1,               // normalized x 的單格寬度
+  PLAYER_EDGE_MARGIN: 0.11,     // 角色中心離左右邊界的安全距離，避免身體越界
+  SPIKE_RANGE_CELLS: 1,
+  MUSHROOM_RANGE_CELLS: 3,
+  HIT_WIDTH: 0.055,             // 未減速時的窄命中線，左右移動可以避開
   MOVE_SPEED: 0.55,             // 每秒走過畫面寬度的比例。無慣性無加速度
   MATCH_TIME_S: 90,
 
   // ── 魔量與遮蔽物 [P2] ─────────────────────────
-  MP_MAX: 100,
-  MP_REGEN_PER_S: 14,           // 約 7 秒回滿
-  COST: { attack: 25, wall: 45 },   // 蓋牆貴，蓋完一時打不出去
+  MP_MAX: 10,
+  MP_REGEN_PER_S: 1,            // 每秒回復 1 MP，上限仍為 10
+  COST: { attack: 1, wall: 2, rock: 2, spike: 2, mushroom: 2 },
+  SPIKE_GROW_S: 2,
+  SPIKE_DURATION_S: 3,
+  SPIKE_WIDTH: 0.055,
+  MUSHROOM_DURATION_S: 8,
+  MUSHROOM_RADIUS: 0.15,        // 十格場地中三格左右範圍的一半
+  MUSHROOM_SLOW_FACTOR: 0.5,    // 範圍內移動速度保留 50%
+  HIT_WIDTH_SLOWED: 0.09,       // 被 Mushroom 減速時較難完全閃開
   COVER_HP: 2,                  // 承受兩次攻擊才消失
   COVER_MAX: 2,                 // 每人最多幾面，超過最舊的崩解
   COVER_OFFSET: 0.10,           // 蓋在自己前方多遠
   COVER_BLOCK_W: 0.09,          // 牆的擋彈寬度
   COVER_HIDE_W: 0.08,           // 擋住頭頂數值的寬度
   BOT_REACT_MS: { apprentice: 9999, warlock: 400, archmage: 220 },
+  BOT_MOVE_SPEED_FACTOR: 1,     // AI 使用正常玩家移動速度
+  BOT_STOP_CHANCE: 0.6,
+  BOT_WALK_MIN_S: 0.9,
+  BOT_WALK_MAX_S: 2.2,
+  BOT_STOP_MIN_S: 0.45,
+  BOT_STOP_MAX_S: 1.2,
 
   // ── Net [E] ───────────────────────────────────
   TICK_HZ: 15,

@@ -5,16 +5,31 @@
  * 分開放在 core/ 而不是 tracking/，因為它跟 webcam 無關 ——
  * webcam 出事切成滑鼠模式時，走位照樣能動。
  */
+import type { Spell } from './types';
 
 const down = new Set<string>();
+const spellShortcuts: Record<string, Spell> = {
+  Digit1: 'attack', Numpad1: 'attack',
+  Digit2: 'rock', Numpad2: 'rock',
+  Digit3: 'spike', Numpad3: 'spike',
+  Digit4: 'mushroom', Numpad4: 'mushroom',
+  Digit5: 'wall', Numpad5: 'wall',
+};
+const queuedSpells: Spell[] = [];
 let disposer: (() => void) | null = null;
 
 export function initInput(): void {
   if (disposer) return;
-  const onDown = (e: KeyboardEvent) => { if (!e.repeat) down.add(e.code); };
+  const onDown = (e: KeyboardEvent) => {
+    if (e.repeat) return;
+    down.add(e.code);
+    const spell = spellShortcuts[e.code];
+    // A shortcut is a direct cast, not part of a Shift-drawn rune.
+    if (spell && !isCasting()) queuedSpells.push(spell);
+  };
   const onUp = (e: KeyboardEvent) => { down.delete(e.code); };
   // 失焦時清空，否則 Alt+Tab 回來角色會自己一直走
-  const onBlur = () => down.clear();
+  const onBlur = () => { down.clear(); queuedSpells.length = 0; };
 
   addEventListener('keydown', onDown);
   addEventListener('keyup', onUp);
@@ -24,6 +39,7 @@ export function initInput(): void {
     removeEventListener('keyup', onUp);
     removeEventListener('blur', onBlur);
     down.clear();
+    queuedSpells.length = 0;
   };
 }
 
@@ -40,5 +56,13 @@ export function isCasting(): boolean {
 }
 
 export function isDown(code: string): boolean { return down.has(code); }
+
+/** Return one direct keyboard cast, without repeating while the key is held. */
+export function consumeSpellShortcut(): Spell | null {
+  return queuedSpells.shift() ?? null;
+}
+
+/** Clear shortcuts pressed before a new match starts. */
+export function clearSpellShortcuts(): void { queuedSpells.length = 0; }
 
 export function disposeInput(): void { disposer?.(); disposer = null; }

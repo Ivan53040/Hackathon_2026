@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import { CONFIG } from '../core/config';
 
 const EYE_HEIGHT = 1.6;
-const LANE_WIDTH = 6;      // x 從 0..1 對應到世界座標的橫向範圍
+const GRID_CELL_WORLD_WIDTH = 6 / 7; // 保留上一版每格寬度，讓戰場按比例拉闊
+const LANE_WIDTH = GRID_CELL_WORLD_WIDTH * CONFIG.GRID_CELLS;
 
 export class FpsCamera {
   readonly cam: THREE.PerspectiveCamera;

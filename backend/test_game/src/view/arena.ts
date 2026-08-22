@@ -5,9 +5,10 @@
  * 不像一個地方 —— 天空、月亮、遠處的塔、地面格線，都是為了讓人相信這裡是個世界。
  */
 import * as THREE from 'three';
+import { CONFIG } from '../core/config';
 import { LANE_WIDTH } from './camera';
 
-const GAP = 8.5;   // 兩邊的距離。太遠對手會小到觀眾在 10 公尺外讀不到
+const GAP = 12;     // 拉遠對手，讓敵方線位落在畫面中段
 
 function tok(name: string): THREE.Color {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -31,6 +32,84 @@ function skyTexture(top: THREE.Color, bottom: THREE.Color): THREE.Texture {
 }
 
 export interface ArenaRefs { stars: THREE.Points; moon: THREE.Mesh; }
+
+/**
+ * Low-cost test arena. It intentionally has no sky dome, particles, distant
+ * scenery or imported architecture: only the playable blue floor, a bridge
+ * between both sides, and two cheap lights are created.
+ */
+export function buildSimpleArena(scene: THREE.Scene): ArenaRefs {
+  const voidC = tok('--void');
+  const blue = tok('--them');
+  const blueLit = tok('--them-hot');
+  const structure = tok('--struct');
+
+  scene.background = voidC;
+  scene.fog = null;
+
+  const floorMaterial = new THREE.MeshStandardMaterial({ color: blue.getHex(), roughness: 0.94, metalness: 0.02 });
+  const sideMaterial = new THREE.MeshStandardMaterial({ color: structure.getHex(), roughness: 0.96, metalness: 0 });
+  const edgeMaterial = new THREE.MeshBasicMaterial({ color: blueLit.getHex() });
+
+  const ownPlatform = new THREE.Mesh(
+    new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2),
+    sideMaterial,
+  );
+  ownPlatform.position.set(0, -0.3, 0.6);
+  ownPlatform.receiveShadow = true;
+  scene.add(ownPlatform);
+
+  const enemyPlatform = new THREE.Mesh(
+    new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2),
+    floorMaterial,
+  );
+  enemyPlatform.position.set(0, -0.3, -GAP);
+  enemyPlatform.receiveShadow = true;
+  scene.add(enemyPlatform);
+
+  // A continuous flat road closes the old gap between the player's side and
+  // the blue arena, so the scene reads as one playable surface.
+  const road = new THREE.Mesh(
+    new THREE.BoxGeometry(LANE_WIDTH, 0.18, GAP - 1.4),
+    floorMaterial,
+  );
+  road.position.set(0, -0.09, (0.6 - GAP) / 2);
+  road.receiveShadow = true;
+  scene.add(road);
+
+  // Subtle ten-column guide so the spell areas are legible without adding a
+  // heavy arena grid or extra background geometry.
+  const gridMaterial = new THREE.MeshBasicMaterial({ color: blueLit.getHex(), transparent: true, opacity: 0.18 });
+  for (let cell = 1; cell < CONFIG.GRID_CELLS; cell++) {
+    const line = new THREE.Mesh(
+      new THREE.BoxGeometry(0.025, 0.02, GAP + 3.2),
+      gridMaterial,
+    );
+    line.position.set((cell / CONFIG.GRID_CELLS - 0.5) * LANE_WIDTH, 0.012, (0.6 - GAP) / 2);
+    scene.add(line);
+  }
+
+  const ownEdge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.1, 0.2), edgeMaterial);
+  ownEdge.position.set(0, 0.05, -1.0);
+  scene.add(ownEdge);
+  const enemyEdge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.1, 0.2), edgeMaterial);
+  enemyEdge.position.set(0, 0.05, -GAP + 1.6);
+  scene.add(enemyEdge);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+  const key = new THREE.DirectionalLight(blueLit.getHex(), 1.1);
+  key.position.set(-4, 8, 2);
+  scene.add(key);
+
+  // Compatibility refs for the shared view type; they are invisible and
+  // contain no geometry, so the simple path has no background animation work.
+  const stars = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ transparent: true, opacity: 0 }));
+  const moon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+  stars.visible = false;
+  moon.visible = false;
+  scene.add(stars, moon);
+  return { stars, moon };
+}
 
 export function buildArena(scene: THREE.Scene): ArenaRefs {
   const voidC = tok('--void');
@@ -125,12 +204,12 @@ export function buildArena(scene: THREE.Scene): ArenaRefs {
   // ── 兩塊平台 ──
   const slabMat = new THREE.MeshStandardMaterial({ color: stone.getHex(), roughness: 0.92, metalness: 0.05 });
   for (const z of [0.6, -GAP]) {
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH + 4, 0.6, 3.2), slabMat);
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2), slabMat);
     slab.position.set(0, -0.3, z);
     scene.add(slab);
     // 受光邊：C2 要求平台數得出來，靠這一條把邊緣拉開對比
     const edge = new THREE.Mesh(
-      new THREE.BoxGeometry(LANE_WIDTH + 4, 0.09, 0.22),
+      new THREE.BoxGeometry(LANE_WIDTH, 0.09, 0.22),
       new THREE.MeshBasicMaterial({ color: lit.getHex() }),
     );
     edge.position.set(0, 0.05, z + (z < -1 ? 1.6 : -1.6));

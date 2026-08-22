@@ -38,6 +38,7 @@ export function drawNameplate(
   cam: THREE.PerspectiveCamera,
   world: THREE.Vector3,
   hp: number,
+  maxHp: number,
   mp: number,
   visible: boolean,
 ): void {
@@ -59,7 +60,7 @@ export function drawNameplate(
 
   const x = sx - W / 2;
   // HP：用格子不用數字。10 公尺外讀得到形狀，讀不到數字
-  const cells = CONFIG.HP_MAX;
+  const cells = Math.max(1, maxHp);
   const cw = (W - (cells - 1) * 2) / cells;
   for (let i = 0; i < cells; i++) {
     ctx.fillStyle = i < hp ? themHot : dim;

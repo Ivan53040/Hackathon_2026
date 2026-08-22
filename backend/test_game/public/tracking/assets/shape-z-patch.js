@@ -255,9 +255,14 @@ let drawLayer;
 let drawContext;
 let finishedStroke = [];
 let finishedStrokeUntil = 0;
+let parentArmed = false;
 
 function shapeTestActive() {
   const overlay = document.querySelector('#shape-test');
+  if (!parentArmed) {
+    overlay?.classList.add('hidden');
+    return false;
+  }
   return Boolean(overlay && !overlay.classList.contains('hidden'));
 }
 
@@ -427,11 +432,37 @@ function install() {
     const progress = document.querySelector('#shape-progress');
     if (progress) progress.textContent = `0 / ${SHAPE_CATALOG.length} passed`;
   };
+  addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.data?.source !== 'runespire-tracking') return;
+    if (event.data?.type === 'arm') {
+      parentArmed = true;
+      resetProgress();
+      document.querySelector('#shape-test')?.classList.remove('hidden');
+      setDrawState('HOLD SHIFT TO DRAW · RELEASE TO DETECT', 'idle');
+    } else if (event.data?.type === 'reset') {
+      parentArmed = false;
+      resetProgress();
+      document.querySelector('#shape-test')?.classList.add('hidden');
+    }
+  });
   resetProgress();
   document.querySelector('#recalibrate')?.addEventListener('click', resetProgress);
   document.querySelector('#start-tracking')?.addEventListener('click', resetProgress);
   const overlay = document.querySelector('#shape-test');
-  if (overlay) new MutationObserver(() => { if (!overlay.classList.contains('hidden')) resetProgress(); }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
+  const blockShapeInputUntilArmed = (event) => {
+    if (parentArmed || (event.code !== 'ShiftLeft' && event.code !== 'ShiftRight')) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  addEventListener('keydown', blockShapeInputUntilArmed, true);
+  addEventListener('keyup', blockShapeInputUntilArmed, true);
+  if (overlay) new MutationObserver(() => {
+    if (!parentArmed && !overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      return;
+    }
+    if (!overlay.classList.contains('hidden')) resetProgress();
+  }).observe(overlay, { attributes: true, attributeFilter: ['class'] });
   addEventListener('keydown', startDrawing, true);
   addEventListener('keyup', finishDrawing, true);
   addEventListener('blur', () => finishDrawing());

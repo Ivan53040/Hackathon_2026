@@ -4,7 +4,7 @@
  * view/ 想要型別安全就 import 這裡；事件名一律用 core/bus 的 EV。
  * 這個檔案不影響 WORKSPLIT §1 的四個簽名，純粹是給 Wesley 少猜一點。
  */
-import type { Spell } from '../core/types';
+import type { DamageSpell, Spell } from '../core/types';
 
 export type Side = 'me' | 'them';
 
@@ -12,7 +12,7 @@ export type Side = 'me' | 'them';
 export interface SpellFired { owner: Side; spell: Spell; fromX: number; toX: number; id: number; }
 
 /** EV.SPELL_HIT —— 打中人。x 是命中位置（= toX），拿來放爆散特效 */
-export interface SpellHit { target: Side; x: number; dmg: number; hpLeft: number; }
+export interface SpellHit { target: Side; x: number; dmg: number; hpLeft: number; spell: DamageSpell; }
 
 /** EV.NEAR_MISS —— 打空了。玩家必須知道自己「閃掉了」，這是走位的正回饋 */
 export interface NearMiss { owner: Side; toX: number; missBy: number; }

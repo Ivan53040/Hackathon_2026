@@ -32,6 +32,38 @@
 .tracking-actions { display: flex; gap: var(--s2); }
 .tracking-actions .btn { flex: 1; font-size: var(--t-sm); }
 
+.practice-screen {
+  z-index: 4;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: var(--s4);
+  pointer-events: none;
+  background: transparent;
+}
+.practice-panel {
+  width: min(760px, calc(100vw - 32px));
+  padding: var(--s3) var(--s4);
+  border: 1px solid color-mix(in srgb, var(--me) 72%, transparent);
+  background: color-mix(in srgb, var(--void) 88%, transparent);
+  pointer-events: auto;
+  text-align: center;
+}
+.practice-kicker { margin: 0 0 var(--s1); color: var(--me); font: var(--t-xs) var(--font-mono); letter-spacing: .16em; }
+.practice-panel h1 { margin: 0 0 var(--s2); font-size: var(--t-lg); color: var(--parchment); }
+.practice-spells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; }
+.practice-spells div { display: grid; gap: 2px; padding: var(--s2); background: color-mix(in srgb, var(--struct) 24%, transparent); }
+.practice-spells b { color: var(--me-hot); font: 700 var(--t-lg) var(--font-mono); }
+.practice-spells span { color: var(--parchment); font-size: var(--t-xs); }
+.practice-spells small { color: var(--dim); font: 10px var(--font-mono); }
+.practice-hint { margin: var(--s2) 0 0; color: var(--dim); font: var(--t-xs) var(--font-mono); }
+.practice-countdown { min-height: 1.2em; margin: var(--s1) 0 0; color: var(--me-hot); font: 700 var(--t-lg) var(--font-mono); }
+.difficulty-actions small { display: block; margin-top: var(--s1); color: var(--dim); font: 10px var(--font-mono); }
+.back-button { margin-top: var(--s2); }
+
+@media (max-width: 42rem) {
+  .practice-spells { grid-template-columns: repeat(3, 1fr); }
+}
+
 /*
  * 首頁封面。中央壓暗是必要的 —— 封面正中間就是兩道法術的強光，
  * 標題與按鈕壓在上面會讀不到。邊緣保持亮，畫面才看得出是張圖。

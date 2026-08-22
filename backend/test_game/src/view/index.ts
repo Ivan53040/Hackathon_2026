@@ -12,8 +12,7 @@ import { EV, on } from '../core/bus';
 import { CONFIG } from '../core/config';
 import { getStroke } from '../runes';
 import { FpsCamera } from './camera';
-import { buildArena, GAP, type ArenaRefs } from './arena';
-import { buildScenery, updateScenery, disposeScenery } from './scenery';
+import { buildSimpleArena, GAP, type ArenaRefs } from './arena';
 import { buildRomanArena, updateRomanArena, disposeRomanArena } from './romanArena';
 import { Actors } from './actors';
 import { drawNameplate } from './nameplate';
@@ -21,6 +20,7 @@ import { drawHud } from '../ui/hud';
 import { LANE_WIDTH } from './camera';
 import { disposeWebcamPip, initWebcamPip, pauseWebcamPip, touchWebcamPip } from './pip';
 import { RuneEffects } from './runeEffects';
+import { SkillEffects } from './skillEffects';
 import type { MatchState, WandFrame } from '../core/types';
 import type { CoverHit, NearMiss, SpellHit } from '../match/events';
 
@@ -35,6 +35,7 @@ let fps: FpsCamera;
 let actors: Actors;
 let arena: ArenaRefs;
 let runeEffects: RuneEffects;
+let skillEffects: SkillEffects;
 let clock = 0;
 let overlay: HTMLCanvasElement;
 let glCanvas: HTMLCanvasElement | null = null;
@@ -50,7 +51,9 @@ let hitVignette: CanvasGradient;
 let meColor = '';
 let meHotColor = '';
 let themHotColor = '';
-const romanScene = new URLSearchParams(location.search).get('scene') !== 'moon';
+// The test game defaults to the cheap flat arena. The original Roman scene
+// remains available for comparison with ?scene=roman.
+const simpleScene = new URLSearchParams(location.search).get('scene') !== 'roman';
 
 function tokenRgb(name: string): [number, number, number] {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -93,17 +96,17 @@ export function initView(overlayCanvas: HTMLCanvasElement): void {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = romanScene ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-  renderer.toneMappingExposure = romanScene ? 1.08 : 1;
-  renderer.shadowMap.enabled = romanScene;
+  renderer.toneMapping = simpleScene ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = simpleScene ? 1 : 1.08;
+  renderer.shadowMap.enabled = !simpleScene;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   scene = new THREE.Scene();
   fps = new FpsCamera(innerWidth / innerHeight);
-  arena = romanScene ? buildRomanArena(scene) : buildArena(scene);
-  if (!romanScene) buildScenery(scene); // 舊月光場景保留：加 ?scene=moon 即可切回
+  arena = simpleScene ? buildSimpleArena(scene) : buildRomanArena(scene);
   actors = new Actors(scene);
   runeEffects = new RuneEffects();
+  skillEffects = new SkillEffects(scene);
 
   addEventListener('resize', onResize);
   offs.push(on(EV.SPELL_HIT, (raw) => {
@@ -137,14 +140,9 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   clock += dt;
   fps.update(s.me.x, dt);
   actors.update(s, dt);
-  if (romanScene) {
+  skillEffects.update(s, dt);
+  if (!simpleScene) {
     updateRomanArena(clock);
-  } else {
-    // 環境呼吸：星光微閃、月暈脈動。畫面完全靜止會讓人以為當機
-    (arena.stars.material as THREE.PointsMaterial).opacity = 0.62 + Math.sin(clock * 0.8) * 0.12;
-    arena.stars.rotation.y = clock * 0.004;
-    (arena.moon.material as THREE.MeshBasicMaterial).opacity = 0.88 + Math.sin(clock * 0.5) * 0.05;
-    updateScenery(clock, dt);
   }
   renderer.render(scene, fps.cam);
 
@@ -153,7 +151,7 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
 
   // 頭頂血魔量：投影對手的世界座標到螢幕
   namePos.set((s.them.x - 0.5) * LANE_WIDTH, 3.05, -GAP + 1);   // 要高過尖帽
-  drawNameplate(ctx, fps.cam, namePos, s.them.hp, s.them.mp, s.canSeeThemStats);
+  drawNameplate(ctx, fps.cam, namePos, s.them.hp, s.them.maxHp, s.them.mp, s.canSeeThemStats);
 
   drawTracers(s);
   drawTrail();
@@ -183,6 +181,7 @@ function drawTracers(s: MatchState): void {
 
   ctx.lineCap = 'round';
   for (const p of s.projectiles) {
+    if (p.spell !== 'attack') continue;
     const toward = p.owner === 'them';
     if (!projectPoint(p.fromX, p.toX, toward, p.progress, projNow)) continue;
     if (!projectPoint(p.fromX, p.toX, toward, Math.max(0, p.progress - TRACER_TAIL), projTail)) continue;
@@ -261,8 +260,8 @@ export function disposeView(): void {
   removeEventListener('resize', onResize);
   actors.dispose();
   runeEffects.dispose();
-  if (romanScene) disposeRomanArena();
-  else disposeScenery();
+  skillEffects.dispose();
+  if (!simpleScene) disposeRomanArena();
   disposeWebcamPip();
   disposeScene();
   renderer?.dispose();

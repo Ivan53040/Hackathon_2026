@@ -5,6 +5,7 @@
   let drawing = false;
   let stroke = [];
   let lastTip = null;
+  let parentArmed = false;
 
   const send = (type, payload = {}) => {
     window.parent.postMessage({ source: CHANNEL, type, ...payload }, location.origin);
@@ -32,7 +33,7 @@
   }
 
   function begin(event) {
-    if ((event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') || event.repeat || drawing) return;
+    if (!parentArmed || (event.code !== 'ShiftLeft' && event.code !== 'ShiftRight') || event.repeat || drawing) return;
     drawing = true;
     stroke = lastTip ? [{ ...lastTip }] : [];
   }
@@ -49,6 +50,19 @@
       send('gesture', { shape: result.shape, confidence: result.confidence });
     }
   }
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.data?.source !== CHANNEL) return;
+    if (event.data.type === 'arm') {
+      parentArmed = true;
+      drawing = false;
+      stroke = [];
+    } else if (event.data.type === 'reset') {
+      parentArmed = false;
+      drawing = false;
+      stroke = [];
+    }
+  });
 
   // Install before the compiled test UI so its capture listener cannot hide the event from us.
   window.addEventListener('keydown', begin, true);

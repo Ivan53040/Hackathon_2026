@@ -7,7 +7,7 @@
  *    每次規格改版，先回來看這個檔案。
  */
 
-export const SPELLS = ['attack', 'wall'] as const;
+export const SPELLS = ['attack', 'wall', 'rock', 'spike', 'mushroom'] as const;
 
 export const CLIENT_TYPES = ['input', 'cast', 'state', 'ping', 'pong', 'rematch'] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
