@@ -30,16 +30,21 @@ function reset(): void {
 export function tickMock(dt: number, myX: number): MatchState {
   t += dt;
   s.me.x = myX;
-  s.them.x = 0.5 + Math.sin(t * 0.7) * 0.32;          // 對手來回走
-  s.them.castProgress = Math.max(0, Math.sin(t * 1.4));
-  s.them.casting = s.them.castProgress > 0.35;         // 週期性起手，給起手光暈用
+  const wanderX = 0.5 + Math.sin(t * 0.7) * 0.32;
+  const aim = nextFire < 0.9 ? Math.min(1, Math.max(0, 1 - nextFire / 0.9)) : 0;
+  const aimEase = aim * aim * (3 - 2 * aim);
+  // 起手時平順走到玩家同一條 lane；正式 bot 也遵守相同直射規則。
+  s.them.x = wanderX + (myX - wanderX) * aimEase;
+  s.them.castProgress = aim;
+  s.them.casting = aim > 0;
   s.timeLeft = Math.max(0, CONFIG.MATCH_TIME_S - t);
 
   // 對手週期性開火，讓你可以調投射物的尺度曲線
   nextFire -= dt;
   if (nextFire <= 0) {
     nextFire = 2.4;
-    s.projectiles.push({ id: pid++, owner: 'them', fromX: s.them.x, toX: s.me.x, progress: 0 });
+    // Mock 也遵守正式規則：敵方投射物只沿自己的 lane 直射。
+    s.projectiles.push({ id: pid++, owner: 'them', fromX: s.them.x, toX: s.them.x, progress: 0 });
     emit(EV.SPELL_FIRED, { owner: 'them' });
   }
 

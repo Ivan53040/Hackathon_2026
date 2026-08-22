@@ -141,7 +141,10 @@ function cast(side: Side, spell: Spell): void {
   // 從自己的遮蔽物後方攻擊要穿過去 —— 蓋牆＝同時防守 + 攻擊，這是蓋牆的誘因。
   // 之前的版本把這條寫反，結果兩邊都躲起來、30 秒沒人掉血。不要「修好」它。
   const id = nextId++;
-  const toX = foe.x;                  // ← 發射當下鎖定，之後不再追蹤對手
+  // 玩家仍然在發射瞬間鎖定目標；敵方只能沿自己所在的 lane 直射。
+  // Bot 會先橫移對準玩家，因此保留「看到起手後側移閃避」的玩法，
+  // 同時不會再出現從敵人位置斜切到玩家位置的彈道。
+  const toX = side === 'them' ? self.x : foe.x;
   state.projectiles.push({ id, owner: side, fromX: self.x, toX, progress: 0 });
   emit(EV.SPELL_FIRED, { owner: side, spell, fromX: self.x, toX, id } as SpellFired);
 }

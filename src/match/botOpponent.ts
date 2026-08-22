@@ -77,11 +77,24 @@ export function createBotOpponent(level: BotLevel): Opponent {
 
       // ── 起手 → 出招 ──
       if (charging) {
+        // 攻擊只能沿自己的 lane 直射。起手期間繼續對線，玩家仍可在
+        // 看到預警後側移；若正在閃避，閃避優先，這一發自然可能打空。
+        if (charging === 'attack' && moveAxis === 0) {
+          const delta = view.me.x - me.x;
+          if (Math.abs(delta) > CONFIG.HIT_WIDTH * 0.45) moveAxis = Math.sign(delta);
+        }
         chargeMs += dtMs;
         if (chargeMs >= CHARGE_MS) { pending = charging; charging = null; chargeMs = 0; }
       } else if (!pending) {
-        charging = decideNext(view);
-        chargeMs = 0;
+        const next = decideNext(view);
+        const delta = view.me.x - me.x;
+        if (next === 'attack' && Math.abs(delta) > CONFIG.HIT_WIDTH * 0.45) {
+          // 先走到同一條射線再起手，避免看起來像斜線自動瞄準。
+          if (moveAxis === 0) moveAxis = Math.sign(delta);
+        } else {
+          charging = next;
+          chargeMs = 0;
+        }
       }
     },
 
