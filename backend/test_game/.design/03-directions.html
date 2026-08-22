@@ -1,0 +1,656 @@
+<title>Runespire Direction Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   單一視覺主題，刻意為之：評估投影影像必須在中性暗色環境下進行。
+   會隨系統翻轉的頁面底色會改變判斷結果，所以這裡不做 light/dark。
+   所有顏色都明確塗上，不繼承宿主。
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --bench:#17181C; --panel:#1E2026; --panel-2:#252831; --rule:#33373F;
+  --text:#E6E3DD; --dim:#8C909B; --mark:#C89B3F;
+  --pass:#69C58C; --fail:#E4705E;
+  --s1:6px; --s2:12px; --s3:20px; --s4:32px; --s5:52px; --s6:84px;
+  --sans:"Instrument Sans",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  --serif:"Instrument Serif",Georgia,"Songti TC","Noto Serif TC","PingFang TC",serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,"PingFang TC",monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bench); color:var(--text);
+  font-family:var(--sans); font-size:15px; line-height:1.6;
+  font-feature-settings:"kern";
+}
+h1,h2,h3{margin:0; text-wrap:balance; font-weight:400}
+p{margin:0}
+a{color:var(--mark)}
+:focus-visible{outline:2px solid var(--mark); outline-offset:3px}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 var(--s3)}
+
+/* ── 控制列 ───────────────────────────────────────────── */
+.bar{
+  position:sticky; top:0; z-index:20;
+  background:rgba(23,24,28,.93); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--rule);
+}
+.bar-in{
+  max-width:1180px; margin:0 auto; padding:10px var(--s3);
+  display:flex; flex-wrap:wrap; align-items:center; gap:var(--s2);
+}
+.bar-label{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--dim); margin-right:var(--s1);
+}
+.sims{display:flex; flex-wrap:wrap; gap:var(--s1)}
+.sim{
+  font-family:var(--sans); font-size:12.5px; font-weight:500;
+  color:var(--dim); background:var(--panel); border:1px solid var(--rule);
+  padding:6px 11px; border-radius:2px; cursor:pointer;
+  transition:color .12s,border-color .12s,background .12s;
+}
+.sim:hover{color:var(--text); border-color:#454A55}
+.sim[aria-pressed="true"]{
+  color:var(--bench); background:var(--mark); border-color:var(--mark); font-weight:600;
+}
+.bar-note{
+  margin-left:auto; font-family:var(--mono); font-size:10.5px;
+  color:var(--dim); letter-spacing:.04em;
+}
+
+/* ── 頁首 ─────────────────────────────────────────────── */
+.head{padding:var(--s6) 0 var(--s5)}
+.eyebrow{
+  font-family:var(--mono); font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--mark); margin-bottom:var(--s3);
+}
+.head h1{
+  font-family:var(--serif); font-size:clamp(38px,6vw,62px); line-height:1.02;
+  letter-spacing:-.01em; max-width:16ch;
+}
+.head h1 em{font-style:italic; color:var(--mark)}
+.lede{
+  margin-top:var(--s3); max-width:62ch; color:var(--dim); font-size:16.5px; line-height:1.65;
+}
+.lede strong{color:var(--text); font-weight:500}
+
+.qs{
+  margin-top:var(--s5); display:grid; gap:1px;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+  background:var(--rule); border:1px solid var(--rule);
+}
+.q{background:var(--panel); padding:var(--s3)}
+.q-k{
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em;
+  color:var(--mark); text-transform:uppercase; margin-bottom:8px;
+}
+.q-t{font-size:14.5px; line-height:1.5}
+
+.gates{
+  margin-top:var(--s4); border:1px solid var(--rule); background:var(--panel);
+  padding:var(--s3); font-size:13.5px; color:var(--dim);
+}
+.gates b{color:var(--text); font-weight:600}
+.gates code{font-family:var(--mono); font-size:12.5px; color:var(--mark)}
+
+/* ── 方向區塊 ─────────────────────────────────────────── */
+.dir{padding:var(--s6) 0; border-top:1px solid var(--rule)}
+.dir-head{display:flex; align-items:baseline; gap:var(--s3); flex-wrap:wrap; margin-bottom:var(--s2)}
+.dir-name{font-family:var(--serif); font-size:clamp(30px,4vw,46px); line-height:1}
+.dir-en{
+  font-family:var(--mono); font-size:11.5px; letter-spacing:.2em;
+  text-transform:uppercase; color:var(--mark);
+}
+.dir-idea{max-width:60ch; font-size:17px; line-height:1.6; margin-bottom:var(--s4)}
+
+/* 場景 */
+.stage{position:relative; background:var(--panel-2); border:1px solid var(--rule); padding:var(--s2)}
+.scene{
+  position:relative; display:block; width:100%; margin:0 auto;
+  filter:var(--scene-filter,none);
+  transition:max-width .3s ease;
+}
+body.dist .scene{max-width:270px}
+.stage::after{
+  content:""; position:absolute; inset:var(--s2); pointer-events:none;
+  background:#fff; opacity:0; transition:opacity .2s;
+}
+body.proj .stage::after{opacity:.075}
+.cap{
+  margin-top:var(--s2); font-family:var(--mono); font-size:11px;
+  color:var(--dim); letter-spacing:.03em; text-align:center;
+}
+
+/* 三個時刻 */
+.moments{
+  margin-top:var(--s3); display:grid; gap:var(--s2);
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+}
+.moment{background:var(--panel-2); border:1px solid var(--rule); padding:var(--s2)}
+.moment svg{display:block; width:100%; filter:var(--scene-filter,none)}
+.moment-t{
+  margin-top:10px; font-size:12.5px; color:var(--dim); line-height:1.45;
+}
+.moment-t b{display:block; color:var(--text); font-weight:600; font-size:13px; margin-bottom:3px}
+
+/* 規格欄 */
+.spec{
+  margin-top:var(--s4); display:grid; gap:1px;
+  grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+  background:var(--rule); border:1px solid var(--rule);
+}
+.cell{background:var(--panel); padding:var(--s3)}
+.cell-k{
+  font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--dim); margin-bottom:10px;
+}
+.cell-b{font-size:14px; line-height:1.6}
+.cell-b em{font-style:normal; color:var(--mark)}
+
+/* 量測表 */
+.metrics{margin-top:var(--s3); overflow-x:auto}
+table{border-collapse:collapse; width:100%; min-width:520px; font-size:13px}
+th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--rule)}
+th{
+  font-family:var(--mono); font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--dim); font-weight:400;
+}
+td.num{font-family:var(--mono); font-variant-numeric:tabular-nums; color:var(--text)}
+.chip{
+  font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.08em;
+  padding:2px 7px; border-radius:2px; white-space:nowrap;
+}
+.chip.ok{background:rgba(105,197,140,.14); color:var(--pass)}
+.chip.no{background:rgba(228,112,94,.14); color:var(--fail)}
+.sw{display:inline-block; width:11px; height:11px; margin-right:8px; vertical-align:-1px; border:1px solid rgba(255,255,255,.22)}
+
+/* 判定 */
+.verdict{
+  margin-top:var(--s3); display:grid; gap:var(--s3);
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.vbox{border-left:2px solid var(--mark); padding-left:var(--s3)}
+.vbox.risk{border-left-color:var(--fail)}
+.vbox-k{
+  font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--dim); margin-bottom:10px;
+}
+.vbox ol,.vbox ul{margin:0; padding-left:18px; font-size:13.5px; line-height:1.65}
+.vbox li{margin-bottom:5px}
+.vbox p{font-size:13.5px; line-height:1.65}
+
+/* 比較 */
+.compare{padding:var(--s6) 0; border-top:1px solid var(--rule)}
+.compare h2{font-family:var(--serif); font-size:clamp(26px,3.4vw,38px); margin-bottom:var(--s3)}
+.axis-a{color:#F5C542} .axis-b{color:#C7A46A} .axis-c{color:#E8A33C}
+.next{
+  margin-top:var(--s5); background:var(--panel); border:1px solid var(--rule); padding:var(--s4);
+}
+.next h3{font-family:var(--serif); font-size:26px; margin-bottom:var(--s2)}
+.next ol{margin:var(--s2) 0 0; padding-left:20px; font-size:14.5px; line-height:1.7; color:var(--dim)}
+.next ol b{color:var(--text)}
+footer{
+  padding:var(--s4) 0 var(--s6); color:var(--dim);
+  font-family:var(--mono); font-size:11px; letter-spacing:.04em;
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important; animation:none!important}}
+@media (max-width:560px){.head{padding:var(--s5) 0 var(--s4)} .dir{padding:var(--s5) 0}}
+</style>
+
+<!-- bloom 濾鏡：真的做 blur + screen，不是假的亮度提升 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <filter id="bloom" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="b"/>
+    <feComponentTransfer in="b" result="bb">
+      <feFuncR type="linear" slope="1.7"/><feFuncG type="linear" slope="1.7"/><feFuncB type="linear" slope="1.7"/>
+    </feComponentTransfer>
+    <feBlend in="SourceGraphic" in2="bb" mode="screen"/>
+  </filter>
+</defs></svg>
+
+<div class="bar">
+  <div class="bar-in">
+    <span class="bar-label">模擬</span>
+    <div class="sims">
+      <button class="sim" id="s-proj" aria-pressed="false">投影機</button>
+      <button class="sim" id="s-gray" aria-pressed="false">灰階</button>
+      <button class="sim" id="s-dist" aria-pressed="false">10 公尺</button>
+      <button class="sim" id="s-bloom" aria-pressed="false">Bloom</button>
+      <button class="sim" id="s-all" aria-pressed="false">全部開</button>
+    </div>
+    <span class="bar-note" id="state">原始畫面</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="head">
+  <div class="eyebrow">Runespire · Stage 3 · 2026-08-21</div>
+  <h1>三個方向，一個<em>投影機</em>會裁掉兩個</h1>
+  <p class="lede">
+    這不是 mockup，是量測台。三個方向用同一個場景畫出來：<strong>我走出掩體開火，對手躲在他的牆後面消失了。</strong>
+    上面四個開關模擬 demo 當天真正會發生的事——投影機洗掉對比、色覺異常、十公尺的距離、bloom 過曝。
+    每個方向下面的數字是<strong>從實際色票即時算出來的 WCAG 相對亮度</strong>，不是我寫上去的。
+  </p>
+
+  <div class="qs">
+    <div class="q"><div class="q-k">Question 01</div><div class="q-t">掩體的三個時刻怎麼演？躲起來 / 走出來 / 牆吃下攻擊</div></div>
+    <div class="q"><div class="q-k">Question 02</div><div class="q-t">敵我識別除了色相之外，第二層編碼用什麼？</div></div>
+    <div class="q"><div class="q-k">Question 03</div><div class="q-t">「對手消失了」怎麼看起來像規則，不像掉線？</div></div>
+    <div class="q"><div class="q-k">Question 04</div><div class="q-t">頭頂 HP／MP 放哪、多大，才不會被牆擋住？</div></div>
+  </div>
+
+  <div class="gates">
+    <b>必須通過的三個閘門</b>（來自 <code>.design/00-brief.md</code>）：
+    <code>C1</code> 場地 vs 天空 ≥ 3:1　·　<code>C2</code> 受光面 vs 場地 ≥ 1.6:1　·　
+    <code>C3</code> 我方色 vs 敵方色的相對亮度差 ≥ 2 倍　·　
+    <code>C4</code> 敵我區分不得只靠色相（開「灰階」自己看）
+  </div>
+</header>
+
+<!-- ══════════════ A · 星圖 ══════════════ -->
+<section class="dir" data-dir="A"
+  data-colors='{"base":["天空","#05070F"],"struct":["場地線","#4E6FA8"],"lit":["受光線","#7FA3DC"],"me":["我方 · 填實","#F5C542"],"them":["敵方 · 空心","#1F86AC"]}'>
+  <div class="dir-head">
+    <h2 class="dir-name">星圖</h2><span class="dir-en">Starchart</span>
+  </div>
+  <p class="dir-idea">場地不是被打光的石頭，是一張<strong>發光的星圖</strong>——建築只有線，法師是圖上的星，牆是把星遮掉的暗雲。</p>
+
+  <div class="stage">
+    <svg class="scene" viewBox="0 0 800 300" role="img" aria-label="星圖方向：金色的我方法師走出掩體施法，攻擊飛向右側；敵方法師被自己的牆遮住，只剩一個熄滅的空心圓">
+      <rect width="800" height="300" fill="#05070F"/>
+      <g stroke="#4E6FA8" stroke-width="1.6" fill="none">
+        <path d="M40 210 H360 M40 210 V250 M360 210 V250 M40 250 H360"/>
+        <path d="M440 210 H760 M440 210 V250 M760 210 V250 M440 250 H760"/>
+        <path d="M70 250 V210 M120 250 V210 M170 250 V210 M220 250 V210 M270 250 V210 M320 250 V210"/>
+        <path d="M490 250 V210 M540 250 V210 M590 250 V210 M640 250 V210 M690 250 V210 M740 250 V210"/>
+      </g>
+      <g stroke="#7FA3DC" stroke-width="2.4" fill="none"><path d="M40 210 H360"/><path d="M440 210 H760"/></g>
+      <g stroke="#243352" stroke-width="1" stroke-dasharray="3 5" fill="none"><path d="M275 165 H545"/></g>
+      <!-- 我方：填實星 + 光環法陣 -->
+      <ellipse cx="275" cy="208" rx="34" ry="9" fill="none" stroke="#F5C542" stroke-width="2" opacity=".85"/>
+      <ellipse cx="275" cy="208" rx="21" ry="6" fill="none" stroke="#F5C542" stroke-width="1.2" opacity=".5"/>
+      <circle cx="275" cy="170" r="13" fill="#F5C542"/>
+      <path d="M275 183 V202" stroke="#F5C542" stroke-width="3"/>
+      <g stroke="#F5C542" stroke-width="1.3" opacity=".8"><path d="M258 153 L275 170 L292 153"/></g>
+      <!-- 我方的牆（我已經走出來了） -->
+      <rect x="200" y="176" width="26" height="34" fill="#0A1020" stroke="#4E6FA8" stroke-width="1.6"/>
+      <path d="M200 176 H226" stroke="#7FA3DC" stroke-width="2.4"/>
+      <!-- 攻擊 -->
+      <circle cx="432" cy="165" r="7" fill="#FF7A3D"/>
+      <circle cx="432" cy="165" r="14" fill="none" stroke="#F5C542" stroke-width="2" opacity=".55"/>
+      <path d="M360 168 Q396 163 425 165" stroke="#FF7A3D" stroke-width="2" fill="none" opacity=".45"/>
+      <!-- 敵方的牆 + 熄滅的星 -->
+      <rect x="556" y="176" width="26" height="34" fill="#0A1020" stroke="#1F86AC" stroke-width="1.6"/>
+      <path d="M556 176 H582" stroke="#3FA6CC" stroke-width="2.4"/>
+      <circle cx="612" cy="170" r="13" fill="none" stroke="#1F2C3A" stroke-width="1.4" stroke-dasharray="2 4"/>
+      <!-- 我方數值牌 -->
+      <g><rect x="243" y="128" width="10" height="7" fill="#F5C542"/><rect x="256" y="128" width="10" height="7" fill="#F5C542"/>
+         <rect x="269" y="128" width="10" height="7" fill="#F5C542"/><rect x="282" y="128" width="10" height="7" fill="#F5C542"/>
+         <rect x="295" y="128" width="10" height="7" fill="none" stroke="#5C4A1E" stroke-width="1.4"/>
+         <rect x="243" y="140" width="62" height="4" fill="#8A6F2A"/><rect x="243" y="140" width="41" height="4" fill="#F5C542"/></g>
+      <text x="612" y="134" font-family="JetBrains Mono, monospace" font-size="12" fill="#1F2C3A" text-anchor="middle">— — —</text>
+    </svg>
+    <div class="cap">同一個場景 · 我方（金）已走出掩體施法 · 敵方（青）被牆遮住，星熄了</div>
+  </div>
+
+  <div class="moments">
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="躲起來：星被暗雲蓋住"><rect width="220" height="90" fill="#05070F"/>
+        <path d="M20 70 H200" stroke="#7FA3DC" stroke-width="2"/>
+        <rect x="96" y="34" width="24" height="36" fill="#0A1020" stroke="#1F86AC" stroke-width="1.5"/>
+        <circle cx="150" cy="46" r="11" fill="none" stroke="#1F2C3A" stroke-width="1.3" stroke-dasharray="2 4"/></svg>
+      <div class="moment-t"><b>躲起來</b>星熄滅，連向它的星座線斷開</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="走出來：星重新亮起"><rect width="220" height="90" fill="#05070F"/>
+        <path d="M20 70 H200" stroke="#7FA3DC" stroke-width="2"/>
+        <rect x="96" y="34" width="24" height="36" fill="#0A1020" stroke="#1F86AC" stroke-width="1.5"/>
+        <circle cx="72" cy="46" r="11" fill="none" stroke="#1F86AC" stroke-width="2.4"/>
+        <path d="M83 46 H150" stroke="#1F86AC" stroke-width="1" stroke-dasharray="3 4"/></svg>
+      <div class="moment-t"><b>走出來</b>星重新亮起，星座線接通＝可以互相打到</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="牆吃下攻擊：暗雲炸成光點"><rect width="220" height="90" fill="#05070F"/>
+        <path d="M20 70 H200" stroke="#7FA3DC" stroke-width="2"/>
+        <g fill="#F5C542"><circle cx="104" cy="40" r="2.4"/><circle cx="118" cy="52" r="2"/><circle cx="96" cy="58" r="1.8"/>
+           <circle cx="126" cy="36" r="1.6"/><circle cx="110" cy="64" r="1.5"/><circle cx="90" cy="44" r="1.4"/></g>
+        <circle cx="108" cy="50" r="19" fill="none" stroke="#F5C542" stroke-width="1.6" opacity=".5"/></svg>
+      <div class="moment-t"><b>牆吃下攻擊</b>暗雲炸開成一撮星塵，星圖的洞被補回來</div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <div class="cell"><div class="cell-k">Visual language</div><div class="cell-b">
+      建築<em>只有線，沒有面</em>。線是自體發光的，所以不必依賴表面明暗——這正是繞過 C1 的方式。牆是唯一的實心體，它靠<em>遮住背後的線</em>被看見。</div></div>
+    <div class="cell"><div class="cell-k">第二層編碼（Q02）</div><div class="cell-b">我方<em>填實圓</em>，敵方<em>空心環</em>。加上亮度差 2.9 倍，灰階下仍然分得開。</div></div>
+    <div class="cell"><div class="cell-k">對手消失（Q03）</div><div class="cell-b">星<em>熄滅成虛線輪廓</em>，位置還在——所以是「他躲起來了」不是「他不見了」。星座線同時斷開。</div></div>
+    <div class="cell"><div class="cell-k">數值牌（Q04）</div><div class="cell-b">頭頂上方的<em>格子條</em>，不用文字。單層之後畫面上半部全空，可以放很大。</div></div>
+    <div class="cell"><div class="cell-k">Motion</div><div class="cell-b">整張星圖<em>極慢地飄</em>（週期 20s，位移 4px），像真的天球。<strong>不動的是</strong>：法師、牆、數值。動的只有背景與法陣。</div></div>
+    <div class="cell"><div class="cell-k">Best case</div><div class="cell-b">若會場<em>能關燈</em>，這個方向的完成度上限最高，而且最接近原本的「深夜天文台」美術方向。</div></div>
+  </div>
+
+  <div class="metrics"><table><thead><tr><th>色票</th><th>Hex</th><th>相對亮度</th><th>對天空</th><th>閘門</th></tr></thead><tbody></tbody></table></div>
+
+  <div class="verdict">
+    <div class="vbox"><div class="vbox-k">Anti-generic：NO — 不會變成別人的東西</div><ol>
+      <li>星座線的<strong>斷開／接通</strong>直接就是遊戲的視線規則，不是裝飾</li>
+      <li>牆是畫面上<strong>唯一的實心體</strong>，因為它是唯一會擋住東西的規則物件</li>
+      <li>「星熄滅」＝角色被遮蔽，用的是天文學自己的語彙（星等、遮掩）</li></ol></div>
+    <div class="vbox risk"><div class="vbox-k">Risk</div><p>
+      線稿在投影機上比色塊更容易被洗掉——<strong>細線是這個方向的命門</strong>，線寬低於 2px 就會消失。
+      而且整體偏抽象，judge 可能第一眼讀成「資料視覺化」而不是「遊戲」。</p></div>
+  </div>
+</section>
+
+<!-- ══════════════ B · 石版 ══════════════ -->
+<section class="dir" data-dir="B"
+  data-colors='{"base":["石版底","#D8DAD4"],"struct":["刻痕","#3A3B36"],"lit":["受光邊","#6E6F66"],"me":["我方 · 金線","#8A6014"],"them":["敵方 · 靛線","#1E3E6E"]}'>
+  <div class="dir-head">
+    <h2 class="dir-name">石版</h2><span class="dir-en">Codex</span>
+  </div>
+  <p class="dir-idea">整場對決是一塊<strong>被雕刻的石板</strong>：法師是刻進去的浮雕，牆是壓上去的石塊，符文是燒灼進石頭的金線。</p>
+
+  <div class="stage">
+    <svg class="scene" viewBox="0 0 800 300" role="img" aria-label="石版方向：淺色石板底，深色刻痕構成場地與人物；我方走出掩體施法，敵方被石塊完全蓋住">
+      <rect width="800" height="300" fill="#D8DAD4"/>
+      <g fill="#C9CBC3">
+        <rect x="0" y="0" width="800" height="1.5"/><rect x="0" y="292" width="800" height="2"/>
+        <circle cx="120" cy="60" r="1.5"/><circle cx="640" cy="88" r="1.5"/><circle cx="410" cy="42" r="1.2"/>
+      </g>
+      <g fill="#3A3B36">
+        <rect x="40" y="212" width="320" height="40"/><rect x="440" y="212" width="320" height="40"/>
+      </g>
+      <g fill="#6E6F66"><rect x="40" y="208" width="320" height="5"/><rect x="440" y="208" width="320" height="5"/></g>
+      <!-- 我方：刻進去的深色浮雕 + 金線 -->
+      <g fill="#3A3B36"><rect x="266" y="158" width="20" height="52"/><rect x="258" y="150" width="36" height="12"/></g>
+      <path d="M266 158 V210 M286 158 V210" stroke="#8A6014" stroke-width="2"/>
+      <ellipse cx="276" cy="212" rx="38" ry="7" fill="none" stroke="#8A6014" stroke-width="2.5"/>
+      <ellipse cx="276" cy="212" rx="23" ry="4.5" fill="none" stroke="#8A6014" stroke-width="1.5" opacity=".6"/>
+      <!-- 我方的牆 -->
+      <g><rect x="198" y="170" width="30" height="42" fill="#3A3B36"/><rect x="198" y="170" width="30" height="5" fill="#6E6F66"/>
+         <rect x="200" y="180" width="26" height="1.5" fill="#6E6F66"/><rect x="200" y="194" width="26" height="1.5" fill="#6E6F66"/></g>
+      <!-- 攻擊：燒灼的金線 -->
+      <path d="M300 168 Q380 158 428 164" stroke="#8A6014" stroke-width="3" fill="none"/>
+      <circle cx="434" cy="164" r="8" fill="#8A6014"/>
+      <!-- 敵方的牆：完全蓋住，後面什麼都沒有 -->
+      <g><rect x="552" y="170" width="30" height="42" fill="#3A3B36"/><rect x="552" y="170" width="30" height="5" fill="#6E6F66"/>
+         <rect x="554" y="180" width="26" height="1.5" fill="#6E6F66"/><rect x="554" y="194" width="26" height="1.5" fill="#6E6F66"/></g>
+      <path d="M598 172 V206" stroke="#B4B6AE" stroke-width="1.5" stroke-dasharray="4 5"/>
+      <!-- 我方數值：刻在旁邊的計數線 -->
+      <g fill="#8A6014"><rect x="248" y="128" width="4" height="16"/><rect x="256" y="128" width="4" height="16"/>
+         <rect x="264" y="128" width="4" height="16"/><rect x="272" y="128" width="4" height="16"/></g>
+      <g fill="#B4B6AE"><rect x="280" y="128" width="4" height="16"/></g>
+      <rect x="248" y="150" width="36" height="4" fill="#B4B6AE"/><rect x="248" y="150" width="24" height="4" fill="#1E3E6E"/>
+    </svg>
+    <div class="cap">石板不需要打光 · 深刻痕對淺石面 8.0:1 · 這是投影機上最不會失敗的組合</div>
+  </div>
+
+  <div class="moments">
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="躲起來：石塊壓在浮雕上"><rect width="220" height="90" fill="#D8DAD4"/>
+        <rect x="20" y="66" width="180" height="14" fill="#3A3B36"/><rect x="20" y="63" width="180" height="4" fill="#6E6F66"/>
+        <rect x="96" y="36" width="28" height="30" fill="#3A3B36"/><rect x="96" y="36" width="28" height="4" fill="#6E6F66"/>
+        <path d="M140 40 V64" stroke="#B4B6AE" stroke-width="1.5" stroke-dasharray="4 5"/></svg>
+      <div class="moment-t"><b>躲起來</b>石塊<strong>物理上壓在浮雕前面</strong>，後面是空的石面</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="走出來：浮雕重新出現"><rect width="220" height="90" fill="#D8DAD4"/>
+        <rect x="20" y="66" width="180" height="14" fill="#3A3B36"/><rect x="20" y="63" width="180" height="4" fill="#6E6F66"/>
+        <rect x="96" y="36" width="28" height="30" fill="#3A3B36"/><rect x="96" y="36" width="28" height="4" fill="#6E6F66"/>
+        <g fill="#3A3B36"><rect x="62" y="40" width="14" height="26"/><rect x="57" y="34" width="24" height="8"/></g>
+        <path d="M62 40 V66" stroke="#1E3E6E" stroke-width="2"/></svg>
+      <div class="moment-t"><b>走出來</b>浮雕從石塊側邊<strong>浮出</strong>，邊緣有一道鑿痕</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="牆吃下攻擊：石塊崩成碎塊"><rect width="220" height="90" fill="#D8DAD4"/>
+        <rect x="20" y="66" width="180" height="14" fill="#3A3B36"/><rect x="20" y="63" width="180" height="4" fill="#6E6F66"/>
+        <g fill="#3A3B36"><rect x="90" y="52" width="11" height="9" transform="rotate(-14 95 56)"/>
+          <rect x="112" y="42" width="9" height="8" transform="rotate(22 116 46)"/><rect x="100" y="34" width="8" height="7"/>
+          <rect x="124" y="58" width="7" height="6" transform="rotate(-30 127 61)"/><rect x="84" y="40" width="6" height="6"/></g>
+        <path d="M78 62 H140" stroke="#8A6014" stroke-width="3"/></svg>
+      <div class="moment-t"><b>牆吃下攻擊</b>石塊<strong>崩成碎塊掉在地上</strong>，金線在原地留一道焦痕</div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <div class="cell"><div class="cell-k">Visual language</div><div class="cell-b">
+      <em>反轉底色。</em>投影機做不出黑，只能做「比較少的光」——所以把亮度預算花在<em>亮底</em>上，深刻痕自然得到 8:1。這是三個方向裡唯一不跟投影機對抗的。</div></div>
+    <div class="cell"><div class="cell-k">第二層編碼（Q02）</div><div class="cell-b">我方<em>金線描邊</em>，敵方<em>藍靛線</em>；人物本體都是同一種刻痕黑。識別靠<em>線的顏色 + 亮度差 2.85 倍</em>。</div></div>
+    <div class="cell"><div class="cell-k">對手消失（Q03）</div><div class="cell-b">石塊<em>物理上蓋住</em>浮雕，後面露出的是空的石面加一道虛線影子。<strong>最不可能被誤讀成掉線的一個。</strong></div></div>
+    <div class="cell"><div class="cell-k">數值牌（Q04）</div><div class="cell-b">刻在角色旁邊的<em>計數短線</em>（正字記號的邏輯），不是懸浮 UI。用掉的那一格變成淺色＝被磨掉。</div></div>
+    <div class="cell"><div class="cell-k">Motion</div><div class="cell-b">幾乎<em>全靜</em>，只有撞擊與崩塌會動，而且動得<em>重</em>（0.35s，強 ease-out，帶一次微震）。<strong>不動的是</strong>：底、光、鏡頭。</div></div>
+    <div class="cell"><div class="cell-k">Best case</div><div class="cell-b">會場<em>不關燈</em>、投影機老舊、或你想要一個沒有人做過的魔法遊戲外觀時，這是唯一安全的選擇。</div></div>
+  </div>
+
+  <div class="metrics"><table><thead><tr><th>色票</th><th>Hex</th><th>相對亮度</th><th>對石版底</th><th>閘門</th></tr></thead><tbody></tbody></table></div>
+
+  <div class="verdict">
+    <div class="vbox"><div class="vbox-k">Anti-generic：NO — 沒有人這樣做魔法對戰</div><ol>
+      <li>血量是<strong>刻上去的計數線，用掉就被磨掉</strong>——因為「血量不會回復」正是規則</li>
+      <li>牆是<strong>壓上去的石塊</strong>，所以「它擋住你自己」在物理上是自明的，不需要教學</li>
+      <li>符文是<strong>燒灼進石頭的痕跡</strong>，跟「筆」這個實體輸入裝置是同一個動作</li></ol></div>
+    <div class="vbox risk"><div class="vbox-k">Risk</div><p>
+      <strong>放棄了發光。</strong>Bloom 在亮底上毫無作用，「深夜魔法」的氛圍整個沒有了，
+      而那是原本 v2/v3 美術方向的全部。團隊可能會覺得「這看起來不像魔法，像博物館」。
+      這是三個裡面最需要你有膽量的一個。</p></div>
+  </div>
+</section>
+
+<!-- ══════════════ C · 皮影 ══════════════ -->
+<section class="dir" data-dir="C"
+  data-colors='{"base":["剪影黑（人與牆）","#0B0B0C"],"struct":["敵方幕光（最差情況）","#2D6B87"],"lit":["我方幕光","#E8A33C"],"me":["我方幕光","#E8A33C"],"them":["敵方幕光","#2D6B87"]}'>
+  <div class="dir-head">
+    <h2 class="dir-name">皮影</h2><span class="dir-en">Theatre</span>
+  </div>
+  <p class="dir-idea">這是一齣<strong>背光的皮影戲</strong>：角色永遠是純黑剪影，身分由<strong>他背後那道光的顏色</strong>決定，牆是切進光裡的黑塊。</p>
+
+  <div class="stage">
+    <svg class="scene" viewBox="0 0 800 300" role="img" aria-label="皮影方向：左半幕暖橘光，右半幕冷青光；純黑剪影人物；我方走出黑塊掩體施法，敵方完全隱沒在黑塊後">
+      <defs>
+        <linearGradient id="warmL" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#F0B25A"/><stop offset="1" stop-color="#D9922F"/></linearGradient>
+        <linearGradient id="coldL" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#25596F"/><stop offset="1" stop-color="#357C9A"/></linearGradient>
+        <radialGradient id="hot" cx=".5" cy=".5" r=".5">
+          <stop offset="0" stop-color="#FFF0CE"/><stop offset="1" stop-color="#E8A33C" stop-opacity="0"/></radialGradient>
+      </defs>
+      <rect x="0" y="0" width="400" height="300" fill="url(#warmL)"/>
+      <rect x="400" y="0" width="400" height="300" fill="url(#coldL)"/>
+      <rect x="398" y="0" width="4" height="300" fill="#7A6A52" opacity=".55"/>
+      <!-- 幕布織紋 -->
+      <g stroke="#000" opacity=".05">
+        <path d="M0 30 H800 M0 90 H800 M0 150 H800 M0 210 H800 M0 270 H800" stroke-width="6"/></g>
+      <!-- 地面 -->
+      <rect x="0" y="252" width="800" height="48" fill="#0B0B0C"/>
+      <!-- 我方數值：燒在幕布上的光條，永遠不會被角色擋住 -->
+      <g><rect x="40" y="40" width="26" height="13" fill="#0B0B0C"/><rect x="72" y="40" width="26" height="13" fill="#0B0B0C"/>
+         <rect x="104" y="40" width="26" height="13" fill="#0B0B0C"/><rect x="136" y="40" width="26" height="13" fill="#0B0B0C"/>
+         <rect x="168" y="40" width="26" height="13" fill="#0B0B0C" opacity=".22"/>
+         <rect x="40" y="60" width="154" height="6" fill="#0B0B0C" opacity=".22"/>
+         <rect x="40" y="60" width="98" height="6" fill="#0B0B0C"/></g>
+      <g><rect x="606" y="40" width="26" height="13" fill="#0B0B0C"/><rect x="638" y="40" width="26" height="13" fill="#0B0B0C"/>
+         <rect x="670" y="40" width="26" height="13" fill="#0B0B0C"/>
+         <rect x="702" y="40" width="26" height="13" fill="#0B0B0C" opacity=".22"/>
+         <rect x="734" y="40" width="26" height="13" fill="#0B0B0C" opacity=".22"/>
+         <rect x="606" y="60" width="154" height="6" fill="#0B0B0C" opacity=".22"/>
+         <rect x="606" y="60" width="52" height="6" fill="#0B0B0C"/></g>
+      <!-- 法陣：幕布被烤亮 -->
+      <ellipse cx="272" cy="252" rx="92" ry="30" fill="url(#hot)"/>
+      <!-- 我方剪影（走出來了） -->
+      <g fill="#0B0B0C">
+        <rect x="263" y="186" width="18" height="66"/><circle cx="272" cy="178" r="13"/>
+        <path d="M281 196 L312 168 L318 176 L287 206 Z"/></g>
+      <!-- 我方的牆：黑塊 + 頂緣光 -->
+      <g><rect x="186" y="196" width="34" height="56" fill="#0B0B0C"/>
+         <rect x="186" y="194" width="34" height="3" fill="#FFE9BE"/></g>
+      <!-- 攻擊：光點在幕上燒出一條路徑 -->
+      <path d="M322 168 Q392 156 442 162" stroke="#FFF0CE" stroke-width="3" fill="none" opacity=".8"/>
+      <circle cx="448" cy="162" r="9" fill="#FFF0CE"/>
+      <circle cx="448" cy="162" r="18" fill="#FFF0CE" opacity=".2"/>
+      <!-- 敵方的牆：完全遮蔽，後面沒有任何東西 -->
+      <g><rect x="574" y="196" width="34" height="56" fill="#0B0B0C"/>
+         <rect x="574" y="194" width="34" height="3" fill="#BFE6F5"/></g>
+    </svg>
+    <div class="cap">剪影對幕光 9.1:1（暖側）／3.3:1（冷側）· 身分在幕上，不在人身上 · 數值永遠不會被遮住</div>
+  </div>
+
+  <div class="moments">
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="躲起來：剪影沒入黑塊"><rect width="220" height="90" fill="#357C9A"/>
+        <rect x="0" y="74" width="220" height="16" fill="#0B0B0C"/>
+        <rect x="96" y="42" width="28" height="32" fill="#0B0B0C"/><rect x="96" y="40" width="28" height="3" fill="#BFE6F5"/></svg>
+      <div class="moment-t"><b>躲起來</b>剪影<strong>併入黑塊，變成同一團黑</strong>——躲藏在視覺上是「合體」</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="走出來：剪影從黑塊分離"><rect width="220" height="90" fill="#357C9A"/>
+        <rect x="0" y="74" width="220" height="16" fill="#0B0B0C"/>
+        <rect x="96" y="42" width="28" height="32" fill="#0B0B0C"/><rect x="96" y="40" width="28" height="3" fill="#BFE6F5"/>
+        <g fill="#0B0B0C"><rect x="66" y="50" width="13" height="24"/><circle cx="72" cy="45" r="9"/></g>
+        <rect x="84" y="42" width="6" height="32" fill="#BFE6F5" opacity=".35"/></svg>
+      <div class="moment-t"><b>走出來</b>剪影<strong>從黑塊剝離</strong>，中間裂開一道亮縫</div>
+    </div>
+    <div class="moment">
+      <svg viewBox="0 0 220 90" role="img" aria-label="牆吃下攻擊：黑塊碎開放光"><rect width="220" height="90" fill="#357C9A"/>
+        <rect x="0" y="74" width="220" height="16" fill="#0B0B0C"/>
+        <g fill="#0B0B0C"><rect x="92" y="52" width="12" height="14" transform="rotate(-16 98 59)"/>
+          <rect x="114" y="44" width="10" height="12" transform="rotate(20 119 50)"/><rect x="100" y="36" width="9" height="9"/>
+          <rect x="126" y="60" width="8" height="8" transform="rotate(-28 130 64)"/></g>
+        <circle cx="110" cy="52" r="24" fill="#FFF0CE" opacity=".28"/></svg>
+      <div class="moment-t"><b>牆吃下攻擊</b>黑塊碎開，<strong>被擋住的光整片湧出來</strong>——最戲劇性的一刻</div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <div class="cell"><div class="cell-k">Visual language</div><div class="cell-b">
+      角色<em>永遠是純黑</em>。黑形對亮底是投影機上能達到的<em>最高對比</em>，而且它不依賴任何顏色——這是三個方向裡對 C4 最徹底的解法。</div></div>
+    <div class="cell"><div class="cell-k">第二層編碼（Q02）</div><div class="cell-b">
+      <em>身分不在人身上，在幕上。</em>左半幕暖橘、右半幕冷青，亮度差 3.4 倍。人走到哪，身分就跟著背後那道光。</div></div>
+    <div class="cell"><div class="cell-k">對手消失（Q03）</div><div class="cell-b">剪影<em>併入黑塊變成同一團黑</em>。你看得到那團黑，所以知道他在裡面——<strong>躲藏＝合體，不是消失</strong>。</div></div>
+    <div class="cell"><div class="cell-k">數值牌（Q04）</div><div class="cell-b">
+      <em>不在頭頂，燒在幕布上緣。</em>因為身分已經由幕承擔了，數值跟著幕走——<strong>永遠不會被牆或角色擋住</strong>，而且可以放到超大。</div></div>
+    <div class="cell"><div class="cell-k">Motion</div><div class="cell-b">
+      <em>光會呼吸</em>（幕的亮度 ±4%，週期 6s）、法陣把幕烤亮。<strong>不動的是</strong>：剪影的輪廓與地面線——形狀永遠銳利，只有光在變。</div></div>
+    <div class="cell"><div class="cell-k">Best case</div><div class="cell-b">
+      當「<em>台上那 90 秒</em>」的權重遠高於「judge 自己玩」時。這是三個裡遠距離讀得最快、也最像一場表演的。</div></div>
+  </div>
+
+  <div class="metrics"><table><thead><tr><th>色票</th><th>Hex</th><th>相對亮度</th><th>對剪影黑</th><th>閘門</th></tr></thead><tbody></tbody></table></div>
+
+  <div class="verdict">
+    <div class="vbox"><div class="vbox-k">Anti-generic：NO — 它長成這個遊戲的樣子</div><ol>
+      <li><strong>身分由背景光承擔</strong>，因為玩家會在自己的半場來回走位——走位本身就是這個遊戲</li>
+      <li><strong>躲藏＝剪影併入黑塊</strong>，把「看不到對手」變成一個形狀事件，不是一個 UI 狀態</li>
+      <li>皮影戲本來就是<strong>用手在光前面做出東西</strong>——跟玩家在鏡頭前用筆畫符文是同一件事</li></ol></div>
+    <div class="vbox risk"><div class="vbox-k">Risk</div><p>
+      <strong>冷側只有 3.3:1，暖側有 9.1:1——兩邊不對等。</strong>青光那一半的玩家會比較難讀，這是必須靠調色收斂的真缺陷。
+      而且純黑剪影<em>看不出角色在畫什麼符文</em>，所有施法資訊都得靠法陣與拖尾承擔。</p></div>
+  </div>
+</section>
+
+<!-- ══════════════ 比較 ══════════════ -->
+<section class="compare">
+  <h2>五軸比較</h2>
+  <p class="lede" style="margin-top:0">如果任兩欄在五軸中有四軸相同，那就不是三個方向，是一個方向配三個滑桿。這三欄<strong>五軸全不同</strong>。</p>
+  <div class="metrics" style="margin-top:var(--s4)"><table><thead><tr>
+    <th>軸</th><th class="axis-a">星圖 Starchart</th><th class="axis-b">石版 Codex</th><th class="axis-c">皮影 Theatre</th></tr></thead>
+    <tbody>
+      <tr><td>密度</td><td>稀疏 · 只有線</td><td>中等 · 有實體量感</td><td>極稀疏 · 大色面</td></tr>
+      <tr><td>動態</td><td>低 · 背景緩慢飄移</td><td>極低 · 只有撞擊，但很重</td><td>高 · 光持續呼吸</td></tr>
+      <tr><td>飽和</td><td>近單色 · 藍為主</td><td>近單色 · 石灰調</td><td>高飽和 · 兩道對立色光</td></tr>
+      <tr><td>溫度</td><td>冷</td><td>暖（灰暖石）</td><td>畫面左右各半，暖冷對立</td></tr>
+      <tr><td>版面邏輯</td><td>嚴格對稱格線</td><td>格線但邊界不齊</td><td>刻意破格 · 左右不對稱</td></tr>
+      <tr><td>底色極性</td><td><strong>暗底</strong></td><td><strong>亮底</strong></td><td><strong>亮底 + 黑形</strong></td></tr>
+    </tbody></table></div>
+
+  <div class="next">
+    <h3>Stage 4 要決定什麼</h3>
+    <p style="color:var(--dim); font-size:14.5px">挑一個，並且說出<strong style="color:var(--text)">放棄了什麼</strong>。以下是我認為真正的取捨：</p>
+    <ol>
+      <li><b>選星圖</b>＝賭會場能關燈。拿到最高的美術上限與團隊熟悉度，賭輸就整場看不見。</li>
+      <li><b>選石版</b>＝放棄發光與「深夜魔法」氛圍，換到投影機上幾乎不可能失敗的對比。最安全，也最需要膽量。</li>
+      <li><b>選皮影</b>＝賭「台上 90 秒」比「judge 自己玩」重要。遠距離最好讀，但玩家看不見自己在畫什麼。</li>
+      <li><b>先做一件事再決定</b>：把這一頁在<strong>會場的投影機</strong>上打開，四個模擬全開，站到十公尺外。三個方向會自己淘汰兩個。</li>
+    </ol>
+  </div>
+</section>
+
+<footer>Runespire · Stage 3 · design-with-taste · 亮度值由頁面即時計算，非人工填寫</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  /* WCAG 相對亮度 —— 頁面自己算，避免我寫錯數字沒人發現 */
+  function lum(hex){
+    var c=[1,3,5].map(function(i){
+      var v=parseInt(hex.substr(i,2),16)/255;
+      return v<=0.04045 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4);
+    });
+    return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2];
+  }
+  function ratio(a,b){var L1=Math.max(a,b),L2=Math.min(a,b);return (L1+0.05)/(L2+0.05);}
+  function chip(ok,txt){return '<span class="chip '+(ok?'ok':'no')+'">'+txt+'</span>';}
+
+  var ORDER=['base','struct','lit','me','them'];
+  document.querySelectorAll('.dir').forEach(function(sec){
+    var c=JSON.parse(sec.getAttribute('data-colors'));
+    var L={}; ORDER.forEach(function(r){L[r]=lum(c[r][1]);});
+    var c1=ratio(L.struct,L.base);
+    var c2=ratio(L.lit,L.struct);
+    var c3=Math.max(L.me,L.them)/Math.min(L.me,L.them);
+    var gates={
+      struct:chip(c1>=3,   'C1 '+(c1>=3?'PASS':'FAIL')+' '+c1.toFixed(2)+':1'),
+      lit:   chip(c2>=1.6, 'C2 '+(c2>=1.6?'PASS':'FAIL')+' '+c2.toFixed(2)+':1'),
+      them:  chip(c3>=2,   'C3 '+(c3>=2?'PASS':'FAIL')+' 亮度差 '+c3.toFixed(2)+'×')
+    };
+    var seen={};
+    var rows=ORDER.filter(function(r){
+      var k=c[r][1]+'|'+c[r][0]; if(seen[k]) return false; seen[k]=1; return true;
+    }).map(function(r){
+      return '<tr><td><span class="sw" style="background:'+c[r][1]+'"></span>'+c[r][0]+'</td>'+
+             '<td class="num">'+c[r][1].toUpperCase()+'</td>'+
+             '<td class="num">'+L[r].toFixed(4)+'</td>'+
+             '<td class="num">'+(r==='base'?'—':ratio(L[r],L.base).toFixed(2)+':1')+'</td>'+
+             '<td>'+(gates[r]||'')+'</td></tr>';
+    });
+    if(!seen[c.them[1]+'|'+c.them[0]]){}
+    sec.querySelector('.metrics tbody').innerHTML=rows.join('');
+  });
+
+  /* 模擬開關 */
+  var on={proj:false,gray:false,dist:false,bloom:false};
+  var names={proj:'投影機',gray:'灰階',dist:'10 公尺',bloom:'Bloom'};
+  var stateEl=document.getElementById('state');
+
+  function apply(){
+    var f=[];
+    if(on.bloom) f.push('url(#bloom)');
+    if(on.gray)  f.push('grayscale(1)');
+    if(on.proj)  f.push('contrast(.66) brightness(1.14) saturate(.82)');
+    if(on.dist)  f.push('blur(.6px)');
+    document.documentElement.style.setProperty('--scene-filter', f.length?f.join(' '):'none');
+    document.body.classList.toggle('proj',on.proj);
+    document.body.classList.toggle('dist',on.dist);
+    Object.keys(on).forEach(function(k){
+      document.getElementById('s-'+k).setAttribute('aria-pressed',String(on[k]));
+    });
+    var active=Object.keys(on).filter(function(k){return on[k];}).map(function(k){return names[k];});
+    stateEl.textContent = active.length ? active.join(' + ') : '原始畫面';
+    document.getElementById('s-all').setAttribute('aria-pressed',String(active.length===4));
+  }
+  Object.keys(on).forEach(function(k){
+    document.getElementById('s-'+k).addEventListener('click',function(){on[k]=!on[k];apply();});
+  });
+  document.getElementById('s-all').addEventListener('click',function(){
+    var all=Object.keys(on).every(function(k){return on[k];});
+    Object.keys(on).forEach(function(k){on[k]=!all;});
+    apply();
+  });
+  apply();
+})();
+</script>
