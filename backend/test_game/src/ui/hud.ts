@@ -13,7 +13,7 @@ const CAST_GUIDE_SPELLS = [
   { name: 'Rock', gesture: 'V', spell: 'rock' },
   { name: 'Spike', gesture: '∧', spell: 'spike' },
   { name: 'Mushroom', gesture: 'm', spell: 'mushroom' },
-  { name: 'Shield', gesture: '5', spell: 'wall' },
+  { name: 'Wall', gesture: 'ARC', spell: 'wall' },
 ] as const;
 let castGuideStartedAt = Number.NEGATIVE_INFINITY;
 let castGuideWasActive = false;
@@ -172,7 +172,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: MatchState): void {
   ctx.save();
   ctx.font = `600 13px ${p.mono}`;
   ctx.fillStyle = p.dim;
-  ctx.fillText(`1 Fireball [Z]   2 Rock [V]   3 Spike [∧]   4 Mushroom [m]   5 Shield`, 28, h - 28);
+  ctx.fillText(`1 Fireball [Z]   2 Rock [V]   3 Spike [∧]   4 Mushroom [m]   5 Wall [ARC]`, 28, h - 28);
   ctx.textAlign = 'center';
   const minutes = Math.floor(s.timeLeft / 60), seconds = Math.floor(s.timeLeft % 60);
   ctx.fillText(`${minutes}:${String(seconds).padStart(2, '0')}`, w / 2, 34);

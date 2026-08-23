@@ -135,8 +135,13 @@ function onResize(): void {
 
 export function renderView(s: MatchState, f: WandFrame, dt: number): void {
   if (!renderer) return;
-  if (s.winner === null) touchWebcamPip();
-  else pauseWebcamPip();
+  // Pen tracking already owns the camera in the hidden calibration iframe.
+  // Opening a second stream here can stop the colour tracker on some webcams.
+  if (s.winner === null) {
+    if (f.source !== 'pen') touchWebcamPip();
+  } else {
+    pauseWebcamPip();
+  }
   clock += dt;
   fps.update(s.me.x, dt);
   actors.update(s, dt);
@@ -155,6 +160,7 @@ export function renderView(s: MatchState, f: WandFrame, dt: number): void {
 
   drawTracers(s);
   drawTrail();
+  drawWandTip(f);
   runeEffects.draw(ctx, dt);
   drawHud(ctx, s);
   void f;
@@ -252,6 +258,36 @@ function drawTrail(): void {
   ctx.strokeStyle = meHotColor;
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+/** The tracked tip stays visible; only the Shift-gated stroke is handled by drawTrail(). */
+function drawWandTip(frame: WandFrame): void {
+  if (!frame.tip) return;
+  const x = frame.tip.x * innerWidth;
+  const y = frame.tip.y * innerHeight;
+  const confidence = Math.max(0.25, Math.min(frame.tipConfidence, 1));
+  const pulse = 8 + Math.sin(clock * 7) * 1.5;
+
+  ctx.save();
+  ctx.fillStyle = meColor;
+  ctx.globalAlpha = 0.12 * confidence;
+  ctx.beginPath();
+  ctx.arc(x, y, pulse * 2.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = meColor;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.7 * confidence;
+  ctx.beginPath();
+  ctx.arc(x, y, pulse, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = meHotColor;
+  ctx.globalAlpha = confidence;
+  ctx.beginPath();
+  ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 export function disposeView(): void {

@@ -12,7 +12,7 @@ import { CONFIG } from '../core/config';
 import { EV, emit, on } from '../core/bus';
 import { clearSpellShortcuts, consumeSpellShortcut, getMoveAxis, isCasting } from '../core/input';
 import { getLatestState, getRole, sendCast, sendState } from '../net';
-import { createBotOpponent as makeBot, type BotLevel } from './botOpponent';
+import { createBotOpponent as makeBot, createPracticeOpponent as makePractice, type BotLevel } from './botOpponent';
 import {
   IDLE_INTENT, toLocalView,
   type CastEvent, type MatchState, type Mode, type Opponent, type Role, type Spell, type WireState,
@@ -38,9 +38,11 @@ let queuedCast: Spell | null = null;   // EV.CAST 隨時會來，排到下一個
 let myCastStart = 0;
 let wasCasting = false;
 let sendAcc = 0;
+let practiceMode = false;
 
 export interface MatchOptions {
   opponentHpMax?: number;
+  practiceMode?: boolean;
 }
 
 function freshState(options: MatchOptions = {}): MatchState {
@@ -64,6 +66,7 @@ export function initMatch(m: Mode, opp: Opponent, options: MatchOptions = {}): v
   disposeMatch();
   mode = m;
   opponent = opp;
+  practiceMode = options.practiceMode ?? false;
   state = freshState(options);
   offCast = on(EV.CAST, (raw) => { queuedCast = (raw as CastEvent).spell; });
   emit(EV.MATCH_START);
@@ -91,8 +94,8 @@ function step(dt: number): void {
   tick++;
 
   // ── 時限 ──
-  state.timeLeft = Math.max(0, state.timeLeft - dt);
-  if (state.timeLeft <= 0) {
+  if (!practiceMode) state.timeLeft = Math.max(0, state.timeLeft - dt);
+  if (!practiceMode && state.timeLeft <= 0) {
     finish(state.me.hp === state.them.hp ? null : state.me.hp > state.them.hp ? 'me' : 'them', 'timeout');
     return;
   }
@@ -272,7 +275,7 @@ function resolveProjectile(owner: Side, spell: 'attack' | 'rock', toX: number): 
   const dmg = spell === 'rock' ? CONFIG.DMG_ROCK : CONFIG.DMG_ATTACK;
   target.hp = Math.max(0, target.hp - dmg);
   emit(EV.SPELL_HIT, { target: targetSide, x: toX, dmg, hpLeft: target.hp, spell } as SpellHit);
-  if (target.hp <= 0) finish(owner, 'kill');
+  if (target.hp <= 0 && !practiceMode) finish(owner, 'kill');
 }
 
 function movementFactor(side: Side): number {
@@ -321,7 +324,7 @@ function advanceHazards(dt: number): void {
         spell: 'spike',
       } as SpellHit);
       state.hazards.splice(i, 1);
-      if (target.hp <= 0) finish(hazard.owner, 'kill');
+      if (target.hp <= 0 && !practiceMode) finish(hazard.owner, 'kill');
       continue;
     }
 
@@ -371,11 +374,16 @@ export function createBotOpponent(level: BotLevel): Opponent {
   return makeBot(level);
 }
 
+export function createPracticeOpponent(): Opponent {
+  return makePractice();
+}
+
 export function disposeMatch(): void {
   offCast?.(); offCast = null;
   opponent?.dispose(); opponent = null;
   state = freshState();
   acc = 0; tick = 0; over = false; nextId = 1;
   queuedCast = null; wasCasting = false; sendAcc = 0;
+  practiceMode = false;
   clearSpellShortcuts();
 }

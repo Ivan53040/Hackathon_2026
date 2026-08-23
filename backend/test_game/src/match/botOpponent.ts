@@ -92,3 +92,13 @@ export function createBotOpponent(level: BotLevel): Opponent {
     },
   };
 }
+
+/** Motionless, non-casting target used only by the post-calibration spell test. */
+export function createPracticeOpponent(): Opponent {
+  return {
+    kind: 'bot',
+    update(): void { /* The practice target deliberately stays still. */ },
+    consume(): OpponentIntent { return IDLE_INTENT; },
+    dispose(): void { /* No timers or listeners to release. */ },
+  };
+}

@@ -62,8 +62,8 @@ function setPhase(phase: TrackingPhase): void {
     update('定位測試已開始，請跟隨畫面指示移動筆尖。');
   } else if (phase === 'runes') {
     title!.textContent = 'Rune check';
-    copy!.textContent = 'Hold Shift, draw Z and ∧, then release Shift to submit each rune.';
-    update('定位完成。請畫出 Z 和 ∧ 完成最後測試。');
+    copy!.textContent = 'Hold Shift, draw Z and ARC, then release Shift to submit each rune.';
+    update('定位完成。請畫出 Z 和 ARC 完成最後測試。');
   }
 }
 
@@ -112,6 +112,12 @@ function continueAfterTest(usePen: boolean): void {
   enterTrackingPage(usePen, activeFlow);
 }
 
+function retryTracking(): void {
+  clearExternalFrame();
+  frame?.contentWindow?.postMessage({ source: 'runespire-tracking', type: 'reset' }, location.origin);
+  enterTracking(activeFlow);
+}
+
 export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow: TrackingFlow) => void): void {
   enterTrackingPage = onReady;
   const el = makeScreen(root);
@@ -124,7 +130,10 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
 
     <header class="tracking-header">
       <div class="tracking-brand"><span>R</span><p><b>RUNESPIRE</b><small>WAND ATTUNEMENT</small></p></div>
-      <button class="btn tracking-mouse" data-mouse>Use mouse mode</button>
+      <div class="tracking-header-actions">
+        <button class="btn tracking-retry" data-retry>Retry</button>
+        <button class="btn tracking-mouse" data-mouse>Use mouse mode</button>
+      </div>
     </header>
 
     <section class="tracking-intro">
@@ -142,7 +151,7 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
       <div class="tracking-space-prompt"><kbd>SPACEBAR</kbd><span>START POSITION TEST</span></div>
       <div class="tracking-runes" aria-label="Rune test progress">
         <span data-shape="z">Z <b>WAIT</b></span>
-        <span data-shape="arc">∧ <b>WAIT</b></span>
+        <span data-shape="arc">ARC <b>WAIT</b></span>
       </div>
       <button data-enter hidden disabled>Continue</button>
     </section>
@@ -164,6 +173,7 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
   lockLabel = el.querySelector<HTMLElement>('[data-lock]');
   enter = el.querySelector<HTMLButtonElement>('[data-enter]');
   const mouse = el.querySelector<HTMLButtonElement>('[data-mouse]')!;
+  const retry = el.querySelector<HTMLButtonElement>('[data-retry]')!;
 
   const onMessage = (event: MessageEvent<TrackingMessage>): void => {
     if (event.source !== frame?.contentWindow || event.origin !== location.origin) return;
@@ -191,13 +201,14 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
       update('測試完成，正在進入自由練習。');
       window.setTimeout(() => continueAfterTest(true), 450);
     } else {
-      update(`${message.shape === 'arc' ? '∧' : 'Z'} 已辨識，請完成另一個符文。`);
+      update(`${message.shape === 'arc' ? 'ARC' : 'Z'} 已辨識，請完成另一個符文。`);
     }
   };
   addEventListener('message', onMessage);
   el.addEventListener('screen:dispose', () => removeEventListener('message', onMessage), { once: true });
 
   enter!.addEventListener('click', () => continueAfterTest(true));
+  retry.addEventListener('click', retryTracking);
   mouse.addEventListener('click', () => {
     clearExternalFrame();
     continueAfterTest(false);

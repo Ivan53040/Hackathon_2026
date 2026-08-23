@@ -13,6 +13,8 @@
 .screen[hidden] { display: none; }
 
 .tracking-screen { display: block; overflow: hidden; padding: 0; background: var(--void); }
+.tracking-screen[hidden] { display: block !important; z-index: -1; opacity: 0; pointer-events: none; }
+.tracking-screen[hidden] > :not(.tracking-frame) { display: none !important; }
 .tracking-frame { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; border: 0; background: var(--void); }
 .tracking-vignette {
   position: absolute; z-index: 1; inset: 0; pointer-events: none;
@@ -37,6 +39,8 @@
 .tracking-brand b { color: var(--parchment); font: 600 var(--t-xs) var(--font-mono); letter-spacing: .18em; }
 .tracking-brand small { color: var(--dim); font: var(--t-xs) var(--font-mono); letter-spacing: .12em; }
 .tracking-mouse { padding: var(--s2) var(--s3); font-size: var(--t-xs); background: color-mix(in srgb, var(--void) 76%, transparent); }
+.tracking-header-actions { display: flex; gap: var(--s2); }
+.tracking-retry { padding: var(--s2) var(--s3); border-color: color-mix(in srgb, var(--me) 65%, var(--struct)); color: var(--me-hot); font-size: var(--t-xs); background: color-mix(in srgb, var(--void) 76%, transparent); }
 
 .tracking-intro {
   position: absolute; z-index: 3; top: 18%; left: clamp(var(--s4), 6vw, var(--s6));
@@ -126,6 +130,7 @@
   background: transparent;
 }
 .practice-panel {
+  position: relative;
   width: min(760px, calc(100vw - 32px));
   padding: var(--s3) var(--s4);
   border: 1px solid color-mix(in srgb, var(--me) 72%, transparent);
@@ -133,6 +138,7 @@
   pointer-events: auto;
   text-align: center;
 }
+.practice-retry { position: absolute; top: calc(var(--s5) * -1); right: 0; padding: var(--s2) var(--s3); font-size: var(--t-xs); background: color-mix(in srgb, var(--void) 88%, transparent); }
 .practice-kicker { margin: 0 0 var(--s1); color: var(--me); font: var(--t-xs) var(--font-mono); letter-spacing: .16em; }
 .practice-panel h1 { margin: 0 0 var(--s2); font-size: var(--t-lg); color: var(--parchment); }
 .practice-spells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; }
@@ -177,6 +183,7 @@
   color: var(--me);
   text-align: center;
 }
+.practice-screen .practice-panel h1 { font-size: var(--t-xl); }
 .screen .sub {
   margin: calc(var(--s3) * -1) 0 0;
   font-family: var(--font-mono);

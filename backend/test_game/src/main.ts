@@ -10,7 +10,7 @@ import { EV, emit, on } from './core/bus';
 import { initInput, isCasting } from './core/input';
 import { getFrame, setSource, currentKind } from './tracking/tracker';
 import { initRunes, disposeRunes } from './runes';
-import { initMatch, tickMatch, createBotOpponent, type MatchOptions } from './match';
+import { initMatch, tickMatch, createBotOpponent, createPracticeOpponent, type MatchOptions } from './match';
 import { initView, renderView } from './view';
 import { show, currentScreen } from './pages';
 import { buildLanding } from './pages/landing';
@@ -76,7 +76,10 @@ buildResults(app, () => {
   if (mode === 'solo') requestTracking('singleplayer');
   else requestTracking('multiplayer', () => startMatch(mode));
 }, () => { disconnect(); show('landing'); });
-buildPractice(app, beginCountdown);
+buildPractice(app, beginCountdown, () => {
+  gamePhase = 'practice';
+  requestTracking('singleplayer');
+});
 buildTracking(app, (usePen, flow) => {
   void setSource(usePen ? 'pen' : 'mouse').then(() => {
     if (flow === 'singleplayer') beginFreePractice();
@@ -113,7 +116,7 @@ function startMatch(m: Mode): void {
 function beginFreePractice(): void {
   mode = 'solo';
   gamePhase = 'practice';
-  initMatch('solo', createBotOpponent(selectedDifficulty), soloOptions());
+  initMatch('solo', createPracticeOpponent(), { ...soloOptions(), practiceMode: true });
   enterPractice(selectedDifficulty);
 }
 
@@ -195,7 +198,7 @@ function loop(now: number): void {
     emit(EV.WAND_FRAME, f);
 
     if (gamePhase === 'countdown') updateCountdown(now);
-    const s = tickMatch(gamePhase === 'battle' ? dt : 0);
+    const s = tickMatch(gamePhase === 'battle' || gamePhase === 'practice' ? dt : 0);
 
     // 15Hz 送位置給對手。不節流會塞爆
     if (currentScreen() === 'game' && mode !== 'solo' && now - netAt > 1000 / CONFIG.TICK_HZ) {
