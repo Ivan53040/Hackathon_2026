@@ -27,4 +27,10 @@ export interface CoverHit { id: number; side: Side; x: number; hpLeft: number; }
 export interface NoMana { spell: Spell; mp: number; need: number; }
 
 /** EV.MATCH_OVER —— winner null = 時限到平手 */
-export interface MatchOver { winner: Side | null; reason: 'kill' | 'timeout'; }
+export interface MatchOver {
+  winner: Side | null;
+  reason: 'kill' | 'timeout';
+  /** 結算頁要同時秀雙方，不能只講「你贏了」 */
+  myHp: number;
+  theirHp: number;
+}

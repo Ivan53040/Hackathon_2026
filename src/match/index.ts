@@ -78,7 +78,13 @@ export function tickMatch(dt: number): MatchState {
     const shortcut = consumeSpellShortcut();
     if (shortcut) sendCast(shortcut, 1, 0);
     const w = getLatestState();
-    if (w) state = toLocalView(w, getRole() ?? 'guest');
+    if (w) {
+      state = toLocalView(w, getRole() ?? 'guest');
+      // host 是權威端，它判定結束後 winner 會出現在 wire 上。guest 自己不模擬，
+      // 所以要在這裡把 MATCH_OVER 補發出去 —— 少了這段，guest 會永遠卡在場上
+      // 看著不動的畫面，結算頁只有 host 看得到。
+      if (state.winner && !over) finish(state.winner, state.timeLeft <= 0 ? 'timeout' : 'kill');
+    }
     return state;
   }
 
@@ -338,7 +344,7 @@ function finish(winner: Side | null, reason: 'kill' | 'timeout'): void {
   if (over) return;
   over = true;
   state.winner = winner;
-  emit(EV.MATCH_OVER, { winner, reason } as MatchOver);
+  emit(EV.MATCH_OVER, { winner, reason, myHp: state.me.hp, theirHp: state.them.hp } as MatchOver);
 }
 
 // ─── host 廣播（M3 才會真的被用到）────────────────

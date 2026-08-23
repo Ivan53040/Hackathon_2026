@@ -17,6 +17,7 @@ import { buildLanding } from './pages/landing';
 import { buildSingleplayer, enterSingleplayer } from './pages/singleplayer';
 import { buildLobby, enterLobby } from './pages/lobby';
 import { buildResults, enterResults } from './pages/results';
+import type { MatchOver } from './match/events';
 import { buildPause, openPause, closePause, isPaused } from './pages/pause';
 import { buildTracking, enterTracking } from './pages/tracking';
 import { buildPractice, enterPractice, setPracticeCountdown } from './pages/practice';
@@ -185,7 +186,15 @@ on(EV.NET_LOST, () => {
 });
 
 on(EV.MATCH_OVER, (p) => {
-  enterResults((p as { winner?: string })?.winner === 'me', casts, hits);
+  const r = p as MatchOver;
+  enterResults({
+    winner: r.winner,
+    reason: r.reason,
+    myHp: r.myHp,
+    theirHp: r.theirHp,
+    casts, hits,
+    soloOpponent: mode === 'solo',
+  });
 });
 
 // ─── 保命熱鍵 ─────────────────────────────────────
