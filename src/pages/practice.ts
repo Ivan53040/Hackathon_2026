@@ -86,6 +86,11 @@ export function buildPractice(root: HTMLElement, onStart: () => void, onRetry: (
     onRetry();
   });
   el.querySelector('[data-ready]')!.addEventListener('click', onStart);
+  addEventListener('keydown', (event) => {
+    if (event.code !== 'Space' || event.repeat || currentScreen() !== 'practice') return;
+    event.preventDefault();
+    onStart();
+  });
 }
 
 export function enterPractice(level: BotLevel): void {
