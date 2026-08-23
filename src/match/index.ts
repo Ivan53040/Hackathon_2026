@@ -344,14 +344,18 @@ function finish(winner: Side | null, reason: 'kill' | 'timeout'): void {
   if (over) return;
   over = true;
   state.winner = winner;
+  // host 一發出 MATCH_OVER 就切到結算頁，主迴圈不再呼叫 tickMatch，broadcast 也就停了。
+  // 帶著 winner 的最後一份 state 必須在這裡繞過 15Hz 節流強制送出去 ——
+  // 否則它會被 sendAcc 擋掉，guest 永遠不知道這局打完了，卡在場上。
+  if (mode === 'host') broadcast(0, true);
   emit(EV.MATCH_OVER, { winner, reason, myHp: state.me.hp, theirHp: state.them.hp } as MatchOver);
 }
 
 // ─── host 廣播（M3 才會真的被用到）────────────────
-function broadcast(dt: number): void {
+function broadcast(dt: number, force = false): void {
   sendAcc += dt;
   const period = 1 / CONFIG.TICK_HZ;
-  if (sendAcc < period) return;
+  if (!force && sendAcc < period) return;
   sendAcc = 0;
   const role = (s: Side): Role => (s === 'me' ? 'host' : 'guest');
   const w: WireState = {
