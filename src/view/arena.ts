@@ -5,6 +5,7 @@
  * 不像一個地方 —— 天空、月亮、遠處的塔、地面格線，都是為了讓人相信這裡是個世界。
  */
 import * as THREE from 'three';
+import { CONFIG } from '../core/config';
 import { LANE_WIDTH } from './camera';
 
 const GAP = 8.5;   // 兩邊的距離。太遠對手會小到觀眾在 10 公尺外讀不到
@@ -31,6 +32,63 @@ function skyTexture(top: THREE.Color, bottom: THREE.Color): THREE.Texture {
 }
 
 export interface ArenaRefs { stars: THREE.Points; moon: THREE.Mesh; }
+
+/** Low-quality arena: one continuous lane, ten grid guides, no background assets. */
+export function buildSimpleArena(scene: THREE.Scene): ArenaRefs {
+  const voidC = tok('--void');
+  const blue = tok('--them');
+  const blueLit = tok('--them-hot');
+  const structure = tok('--struct');
+
+  scene.background = voidC;
+  scene.fog = null;
+
+  const floorMaterial = new THREE.MeshStandardMaterial({ color: blue.getHex(), roughness: 0.94, metalness: 0.02 });
+  const sideMaterial = new THREE.MeshStandardMaterial({ color: structure.getHex(), roughness: 0.96, metalness: 0 });
+  const edgeMaterial = new THREE.MeshBasicMaterial({ color: blueLit.getHex() });
+
+  const ownPlatform = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2), sideMaterial);
+  ownPlatform.position.set(0, -0.3, 0.6);
+  scene.add(ownPlatform);
+
+  const enemyPlatform = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.6, 3.2), floorMaterial);
+  enemyPlatform.position.set(0, -0.3, -GAP);
+  scene.add(enemyPlatform);
+
+  const road = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.18, GAP - 1.4), floorMaterial);
+  road.position.set(0, -0.09, (0.6 - GAP) / 2);
+  scene.add(road);
+
+  const gridMaterial = new THREE.MeshBasicMaterial({ color: blueLit.getHex(), transparent: true, opacity: 0.18 });
+  const lineGeometry = new THREE.BoxGeometry(0.025, 0.02, GAP + 3.2);
+  const grid = new THREE.InstancedMesh(lineGeometry, gridMaterial, CONFIG.GRID_CELLS - 1);
+  const transform = new THREE.Matrix4();
+  for (let cell = 1; cell < CONFIG.GRID_CELLS; cell++) {
+    transform.makeTranslation((cell / CONFIG.GRID_CELLS - 0.5) * LANE_WIDTH, 0.012, (0.6 - GAP) / 2);
+    grid.setMatrixAt(cell - 1, transform);
+  }
+  grid.instanceMatrix.needsUpdate = true;
+  scene.add(grid);
+
+  const ownEdge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.1, 0.2), edgeMaterial);
+  ownEdge.position.set(0, 0.05, -1);
+  scene.add(ownEdge);
+  const enemyEdge = new THREE.Mesh(new THREE.BoxGeometry(LANE_WIDTH, 0.1, 0.2), edgeMaterial);
+  enemyEdge.position.set(0, 0.05, -GAP + 1.6);
+  scene.add(enemyEdge);
+
+  scene.add(new THREE.AmbientLight(tok('--spell-core').getHex(), 1.25));
+  const key = new THREE.DirectionalLight(blueLit.getHex(), 1.1);
+  key.position.set(-4, 8, 2);
+  scene.add(key);
+
+  const stars = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ transparent: true, opacity: 0 }));
+  const moon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+  stars.visible = false;
+  moon.visible = false;
+  scene.add(stars, moon);
+  return { stars, moon };
+}
 
 export function buildArena(scene: THREE.Scene): ArenaRefs {
   const voidC = tok('--void');

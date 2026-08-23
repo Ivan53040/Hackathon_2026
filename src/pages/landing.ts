@@ -8,15 +8,18 @@
  */
 import { makeScreen, register, show } from './index';
 import { createRoom, checkRoom } from '../net';
+import { getGraphicsQuality, setGraphicsQuality } from '../view/quality';
 
 type Handlers = {
   onHost: (code: string, playerId: string) => void;
   onJoin: (code: string, playerId: string) => void;
   onSolo: () => void;
+  onQualityChanged: () => void;
 };
 
 export function buildLanding(root: HTMLElement, h: Handlers): void {
   const el = makeScreen(root);
+  const quality = getGraphicsQuality();
   el.classList.add('cover');          // 首頁鋪封面，其餘頁面維持純色
   // 全部的字收進一塊石碑裡 —— 封面因此可以全強度鋪滿，
   // 對比在碑面上成立而不是在畫上。見 .design/04-decision.md
@@ -35,19 +38,25 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
       <h1>RUNESPIRE</h1>
       <p class="sub">Draw the rune · Cast the spell</p>
       <div class="runes">
-        <span><b>Z</b><i>Attack</i></span>
-        <span><b>&#x2312;</b><i>Arc · Build</i></span>
+        <span><b>Z</b><i>Fireball</i></span>
+        <span><b>V</b><i>Rock</i></span>
+        <span><b>∧</b><i>Spike</i></span>
+        <span><b>★</b><i>Mushroom</i></span>
+        <span><b>&#x2312;</b><i>Wall</i></span>
       </div>
       <div class="actions">
         <button class="btn primary" data-a="host">Create a room</button>
         <button class="btn" data-a="join">Join a room</button>
-        <button class="btn" data-a="solo">Practise against a bot</button>
+        <button class="btn" data-a="solo">Single player</button>
         <button class="btn" data-a="help">How to play</button>
+        <button class="btn quality-button" data-a="quality" aria-pressed="${quality === 'low'}">
+          Graphics quality <span data-quality>${quality.toUpperCase()}</span>
+        </button>
       </div>
       <p class="err" data-err></p>
       <p class="note">
-        Hold <b>Shift</b> and draw Z or arc in the air with your wand.<br>
-        <b>A</b> / <b>D</b> to step left and right.
+        Hold <b>Shift</b> and draw one of five runes with your wand.<br>
+        <b>A</b> / <b>D</b> to move · <b>1–5</b> to test spells directly.
       </p>
       <!-- 手機玩不了（要 webcam + 筆 + A/D 鍵盤）。與其假裝支援，不如講清楚 -->
       <p class="note desktop-only">Needs a desktop browser with a webcam.</p>
@@ -89,15 +98,27 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
           </div>
           <div class="help-step">
             <span class="help-rune">Z</span>
-            <span><b>Attack</b><small>Draw a Z to cast a direct spell at your opponent.</small></span>
+            <span><b>Fireball · 1 MP</b><small>Fast direct spell; a wall can block it.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-rune">V</span>
+            <span><b>Rock · 2 MP</b><small>Drops onto the locked lane and ignores walls.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-rune">∧</span>
+            <span><b>Spike · 2 MP</b><small>Raises a one-cell spike strip along your lane.</small></span>
+          </div>
+          <div class="help-step">
+            <span class="help-rune">★</span>
+            <span><b>Mushroom · 2 MP</b><small>Creates a three-cell slowing zone around the opponent.</small></span>
           </div>
           <div class="help-step">
             <span class="help-rune">&#x2312;</span>
-            <span><b>Build</b><small>Draw an arc to create cover. It breaks after taking two hits.</small></span>
+            <span><b>Wall · 2 MP</b><small>Creates cover that breaks after two Fireball hits.</small></span>
           </div>
         </div>
 
-        <p class="help-tip"><b>Cover advantage</b> Your cover blocks enemy spells and hides your HP and MP, while your own attacks pass through it.</p>
+        <p class="help-tip"><b>Tip</b> Every offensive spell locks its target lane when cast. Move after the warning to dodge it.</p>
         <div class="modal-actions single-action">
           <button class="btn primary" type="button" data-close="help">Ready to duel</button>
         </div>
@@ -201,6 +222,15 @@ export function buildLanding(root: HTMLElement, h: Handlers): void {
   });
 
   el.querySelector('[data-a="solo"]')!.addEventListener('click', () => h.onSolo());
+  const qualityButton = el.querySelector<HTMLButtonElement>('[data-a="quality"]')!;
+  const qualityLabel = qualityButton.querySelector<HTMLElement>('[data-quality]')!;
+  qualityButton.addEventListener('click', () => {
+    const next = getGraphicsQuality() === 'high' ? 'low' : 'high';
+    setGraphicsQuality(next);
+    qualityLabel.textContent = next.toUpperCase();
+    qualityButton.setAttribute('aria-pressed', String(next === 'low'));
+    h.onQualityChanged();
+  });
   el.querySelector('[data-a="help"]')!.addEventListener('click', () => {
     openModal(helpModal);
   });

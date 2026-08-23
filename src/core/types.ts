@@ -8,7 +8,8 @@
 
 export type Role = 'host' | 'guest';
 export type Mode = 'solo' | 'host' | 'guest';
-export type Spell = 'attack' | 'wall';   // Z 攻擊 · arc 建造
+export type Spell = 'attack' | 'wall' | 'rock' | 'spike' | 'mushroom';
+export type DamageSpell = 'attack' | 'rock' | 'spike';
 
 // ─── 追蹤 ──────────────────────────────────────────
 export interface Vec2 { x: number; y: number; }
@@ -26,7 +27,8 @@ export interface Duelist {
   id: string;
   x: number;             // 0..1，由 A/D 推導
   hp: number;            // 不回復，歸零即敗
-  mp: number;            // 自動回復，不夠不能施法
+  maxHp: number;         // hard 難度可提高敵方上限
+  mp: number;            // 不夠不能施法；回復規則由 config 控制
   casting: boolean;
   castProgress: number;  // 0..1，起手光暈半徑用
 }
@@ -51,6 +53,7 @@ export interface Cover {
 export interface Projectile {
   id: number;
   owner: Role;
+  spell: 'attack' | 'rock';
   fromX: number;
   /**
    * 發射當下鎖定的目標位置。之後不再追蹤對手。
@@ -60,6 +63,31 @@ export interface Projectile {
   progress: number;      // 0..1
 }
 
+export interface SpikeHazard {
+  id: number;
+  owner: Role;
+  type: 'spike';
+  fromX: number;
+  toX: number;
+  progress: number;
+  age: number;
+  hit: boolean;
+}
+
+export interface MushroomHazard {
+  id: number;
+  owner: Role;
+  type: 'mushroom';
+  x: number;
+  radius: number;
+  age: number;
+}
+
+export type Hazard = SpikeHazard | MushroomHazard;
+export type LocalHazard =
+  | (Omit<SpikeHazard, 'owner'> & { owner: 'me' | 'them' })
+  | (Omit<MushroomHazard, 'owner'> & { owner: 'me' | 'them' });
+
 // ─── wire：永遠用絕對角色 host/guest，不准出現 me/them ───
 export interface WireState {
   tick: number;
@@ -67,6 +95,7 @@ export interface WireState {
   guest: Duelist;
   covers: Cover[];
   projectiles: Projectile[];
+  hazards: Hazard[];
   timeLeft: number;
   winner: Role | null;
 }
@@ -77,6 +106,7 @@ export interface MatchState {
   them: Duelist;
   covers: (Omit<Cover, 'owner'> & { side: 'me' | 'them' })[];
   projectiles: (Omit<Projectile, 'owner'> & { owner: 'me' | 'them' })[];
+  hazards: LocalHazard[];
   /** 對手前面有沒有牆。false → 他頭頂的血魔量顯示成 ???。純顯示，不影響規則 */
   canSeeThemStats: boolean;
   timeLeft: number;
@@ -93,6 +123,7 @@ export function toLocalView(s: WireState, myRole: Role): MatchState {
     them,
     covers: s.covers.map(({ owner, ...c }) => ({ ...c, side: side(owner) })),
     projectiles: s.projectiles.map(({ owner, ...p }) => ({ ...p, owner: side(owner) })),
+    hazards: s.hazards.map(({ owner, ...h }) => ({ ...h, owner: side(owner) })),
     // 每個 client 自己算，不進 wire —— 兩邊算出來的結果本來就不同
     canSeeThemStats: !s.covers.some((c) => c.owner === other && Math.abs(c.x - them.x) < 0.08),
     timeLeft: s.timeLeft,

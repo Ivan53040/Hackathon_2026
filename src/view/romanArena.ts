@@ -356,30 +356,34 @@ export function buildRomanArena(scene: THREE.Scene): ArenaRefs {
     }
   }, undefined, () => { /* 海報載不到不影響遊戲 */ });
 
-  new GLTFLoader().load('/models/roman_arena.glb', (gltf) => {
-    if (!root || generation !== loadGeneration) {
-      disposeObject(gltf.scene);
-      return;
-    }
-    gltf.scene.name = 'blender-roman-architecture';
-    // Expand the architectural shell without changing the combat coordinates.
-    // The backward shift keeps near pillars/banners out of the player's peripheral view.
-    gltf.scene.scale.set(1.2, 1, 1.2);
-    gltf.scene.position.z = -1.35;
-    gltf.scene.traverse((node) => {
-      if (!(node instanceof THREE.Mesh)) return;
-      node.castShadow = true;
-      node.receiveShadow = true;
-      // Blender's arena is exported as one multi-material mesh. Its built-in flame
-      // primitive is the large white triangle seen in the foreground, so hide only
-      // that material group and let the layered runtime flame above replace it.
-      const nodeMaterials = Array.isArray(node.material) ? node.material : [node.material];
-      for (const material of nodeMaterials) {
-        if (material.name === 'Brazier Flame') material.visible = false;
+  const loadArenaChunk = (file: string, name: string, castShadow: boolean): void => {
+    new GLTFLoader().load(`/models/${file}`, (gltf) => {
+      if (!root || generation !== loadGeneration) {
+        disposeObject(gltf.scene);
+        return;
       }
+      gltf.scene.name = name;
+      // Expand the architectural shell without changing the combat coordinates.
+      // The backward shift keeps near pillars/banners out of the player's peripheral view.
+      gltf.scene.scale.set(1.2, 1, 1.2);
+      gltf.scene.position.z = -1.35;
+      gltf.scene.traverse((node) => {
+        if (!(node instanceof THREE.Mesh)) return;
+        node.castShadow = castShadow;
+        node.receiveShadow = true;
+      });
+      root.add(gltf.scene);
+    }, undefined, () => {
+      // The runtime geometry remains playable if an optional scene chunk is unavailable.
     });
-    root.add(gltf.scene);
-  });
+  };
+
+  // Core architecture is needed immediately. Decorative crimson pieces are delayed so
+  // the first frame of a match is not competing with model parsing and shader setup.
+  loadArenaChunk('roman_arena_core.glb', 'blender-roman-architecture-core', true);
+  window.setTimeout(() => {
+    if (generation === loadGeneration) loadArenaChunk('roman_arena_decor.glb', 'blender-roman-architecture-decor', false);
+  }, 120);
 
   // Hidden compatibility refs let the shared render loop keep its compact API.
   const stars = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ transparent: true, opacity: 0 }));

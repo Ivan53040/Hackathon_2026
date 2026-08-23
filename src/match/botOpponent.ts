@@ -1,118 +1,104 @@
 /**
- * Bot 對手　[擁有者：Bill]
+ * Single-player opponent behaviour.
  *
- * ⚠️ 視角陷阱：`update(dt, view)` 收到的是**玩家的** MatchState。
- *    所以 `view.them` 才是我自己，`view.me` 是敵人（玩家），
- *    `p.owner === 'me'` 的投射物是朝我飛過來的。
- *
- * 這裡只回傳「意圖」，血量、位置、命中全部由 match/index.ts 模擬。
- * 跟 RemoteOpponent 同介面 —— 連線爆炸時一行對調。
+ * Training keeps the quiet patrol. The other levels use the same movement
+ * model, but periodically cast a random spell.
  */
 import { CONFIG } from '../core/config';
 import { IDLE_INTENT, type MatchState, type Opponent, type OpponentIntent, type Spell } from '../core/types';
 
-export type BotLevel = 'apprentice' | 'warlock' | 'archmage';
+export type BotLevel = 'training' | 'easy' | 'medium' | 'hard';
 
-/**
- * 起手時間。借用 PROJ_MS（0.8s）—— 跟人畫一個符文的時間差不多。
- * ⚠️ 這是我借的，不是設計定的。要獨立調整請人類在 config.ts 加一個 BOT_CHARGE_MS。
- */
-const CHARGE_MS = CONFIG.PROJ_MS;
+const TURN_LEFT_EDGE = CONFIG.PLAYER_EDGE_MARGIN;
+const TURN_RIGHT_EDGE = 1 - CONFIG.PLAYER_EDGE_MARGIN;
+const RANDOM_SPELLS: Spell[] = ['attack', 'rock', 'spike', 'mushroom', 'wall'];
+
+function randomBetween(min: number, max: number): number {
+  return min + Math.random() * (max - min);
+}
+
+function randomDirection(): number {
+  return Math.random() < 0.5 ? -1 : 1;
+}
+
+function castInterval(level: BotLevel): number {
+  if (level === 'easy') return 3;
+  if (level === 'medium' || level === 'hard') return 2;
+  return Number.POSITIVE_INFINITY;
+}
 
 export function createBotOpponent(level: BotLevel): Opponent {
-  const reactMs = CONFIG.BOT_REACT_MS[level];
-  const canWall = level !== 'apprentice';       // 學徒不蓋牆、不閃避
-  const canDodge = level !== 'apprentice';
-
-  let moveAxis = 0;
-  let charging: Spell | null = null;
-  let chargeMs = 0;
-  let pending: Spell | null = null;
-  /** 這一發投射物已經被我看到多久了（reaction delay 用） */
-  const seen = new Map<number, number>();
-
-  function decideNext(view: MatchState): Spell | null {
-    const me = view.them;                        // ← 我自己
-    const myCovers = view.covers.filter((c) => c.side === 'them');
-
-    // 我站的這條線上有沒有牆？沒有的話先蓋 —— 蓋完照樣能開火（C2），所以蓋牆沒壞處。
-    // 已經被自己的牆罩住就不要再蓋，不然兩面牆疊在同一條線上，純浪費魔量。
-    const covered = myCovers.some((c) => Math.abs(c.x - me.x) < CONFIG.COVER_BLOCK_W);
-    if (canWall && !covered && myCovers.length < CONFIG.COVER_MAX && me.mp >= CONFIG.COST.wall) {
-      // 大法師一定先蓋牆再打；術士只在完全沒牆時才蓋
-      if (level === 'archmage' || myCovers.length === 0) return 'wall';
-    }
-    if (me.mp >= CONFIG.COST.attack) return 'attack';
-    return null;
-  }
+  let moveAxis: number = CONFIG.BOT_MOVE_SPEED_FACTOR;
+  let direction: number = randomDirection();
+  let stopped = false;
+  let modeTime = randomBetween(CONFIG.BOT_WALK_MIN_S, CONFIG.BOT_WALK_MAX_S);
+  let spellTime = castInterval(level);
+  let castingTime = 0;
+  let nextSpell: Spell | null = null;
 
   return {
     kind: 'bot',
 
     update(dt: number, view: MatchState): void {
-      const me = view.them;
-      const dtMs = dt * 1000;
+      const x = view.them.x;
+      if (x <= TURN_LEFT_EDGE) direction = 1;
+      if (x >= TURN_RIGHT_EDGE) direction = -1;
 
-      // ── 閃避：只有「飛行中且鎖定我這條線」的投射物才需要閃 ──
-      // toX 是發射當下鎖定的，所以躲的時機是「彈在空中」，不是「對方在畫」
-      moveAxis = 0;
-      if (canDodge) {
-        let threat: { toX: number } | null = null;
-        for (const p of view.projectiles) {
-          if (p.owner !== 'me') continue;                       // 只有玩家打過來的才是威脅
-          const age = (seen.get(p.id) ?? 0) + dtMs;
-          seen.set(p.id, age);
-          if (age < reactMs) continue;                          // 還沒反應過來
-          if (Math.abs(p.toX - me.x) < CONFIG.HIT_WIDTH) threat = p;
-        }
-        // 走掉的彈清掉，不然 Map 會一直長
-        for (const id of seen.keys()) if (!view.projectiles.some((p) => p.id === id)) seen.delete(id);
-
-        if (threat) {
-          const away = Math.sign(me.x - threat.toX) || 1;
-          // 貼到邊了就往反方向鑽，不要卡在牆角被打
-          moveAxis = (me.x <= 0.02 && away < 0) || (me.x >= 0.98 && away > 0) ? -away : away;
+      modeTime -= dt;
+      if (modeTime <= 0) {
+        if (stopped) {
+          stopped = false;
+          direction = randomDirection();
+          modeTime = randomBetween(CONFIG.BOT_WALK_MIN_S, CONFIG.BOT_WALK_MAX_S);
+        } else if (Math.random() < CONFIG.BOT_STOP_CHANCE) {
+          stopped = true;
+          modeTime = randomBetween(CONFIG.BOT_STOP_MIN_S, CONFIG.BOT_STOP_MAX_S);
+        } else {
+          direction = randomDirection();
+          modeTime = randomBetween(CONFIG.BOT_WALK_MIN_S, CONFIG.BOT_WALK_MAX_S);
         }
       }
+      moveAxis = stopped ? 0 : direction * CONFIG.BOT_MOVE_SPEED_FACTOR;
 
-      // ── 起手 → 出招 ──
-      if (charging) {
-        // 攻擊只能沿自己的 lane 直射。起手期間繼續對線，玩家仍可在
-        // 看到預警後側移；若正在閃避，閃避優先，這一發自然可能打空。
-        if (charging === 'attack' && moveAxis === 0) {
-          const delta = view.me.x - me.x;
-          if (Math.abs(delta) > CONFIG.HIT_WIDTH * 0.45) moveAxis = Math.sign(delta);
-        }
-        chargeMs += dtMs;
-        if (chargeMs >= CHARGE_MS) { pending = charging; charging = null; chargeMs = 0; }
-      } else if (!pending) {
-        const next = decideNext(view);
-        const delta = view.me.x - me.x;
-        if (next === 'attack' && Math.abs(delta) > CONFIG.HIT_WIDTH * 0.45) {
-          // 先走到同一條射線再起手，避免看起來像斜線自動瞄準。
-          if (moveAxis === 0) moveAxis = Math.sign(delta);
-        } else {
-          charging = next;
-          chargeMs = 0;
-        }
+      castingTime = Math.max(0, castingTime - dt);
+      spellTime -= dt;
+      if (spellTime <= 0 && level !== 'training' && !nextSpell && castingTime <= 0) {
+        nextSpell = RANDOM_SPELLS[Math.floor(Math.random() * RANDOM_SPELLS.length)];
+        castingTime = 0.28;
+        spellTime = castInterval(level);
       }
     },
 
     consume(): OpponentIntent {
-      const cast = pending;
-      pending = null;                              // 拿走就清掉，不會重複觸發
-      if (!charging && !cast) return { ...IDLE_INTENT, moveAxis };
+      const cast = nextSpell;
+      nextSpell = null;
       return {
+        ...IDLE_INTENT,
         moveAxis,
         cast,
-        casting: charging !== null,                // ← 玩家唯一的預警：對手舉杖
-        castProgress: charging ? Math.min(1, chargeMs / CHARGE_MS) : 0,
+        casting: castingTime > 0,
+        castProgress: castingTime > 0 ? 1 - castingTime / 0.28 : 0,
       };
     },
 
     dispose(): void {
-      charging = null; pending = null; moveAxis = 0; chargeMs = 0;
-      seen.clear();
+      moveAxis = 0;
+      direction = 1;
+      stopped = false;
+      modeTime = 0;
+      spellTime = Number.POSITIVE_INFINITY;
+      castingTime = 0;
+      nextSpell = null;
     },
+  };
+}
+
+/** Motionless, non-casting target used by the post-calibration spell test. */
+export function createPracticeOpponent(): Opponent {
+  return {
+    kind: 'bot',
+    update(): void { /* The practice target deliberately stays still. */ },
+    consume(): OpponentIntent { return IDLE_INTENT; },
+    dispose(): void { /* No timers or listeners to release. */ },
   };
 }

@@ -7,7 +7,7 @@
  *    每次規格改版，先回來看這個檔案。
  */
 
-export const SPELLS = ['attack', 'wall'] as const;
+export const SPELLS = ['attack', 'wall', 'rock', 'spike', 'mushroom'] as const;
 
 export const CLIENT_TYPES = ['input', 'cast', 'state', 'ping', 'pong', 'rematch', 'start'] as const;
 export type ClientType = (typeof CLIENT_TYPES)[number];
@@ -34,7 +34,8 @@ export function isValidMessage(m: unknown): m is { type: ClientType } {
     case 'state':
       // 陣列長度上限：防止有人送十萬面牆把對方瀏覽器打死
       return Array.isArray(o.projectiles) && o.projectiles.length <= MAX_ARRAY
-          && Array.isArray(o.covers) && o.covers.length <= MAX_ARRAY;
+          && Array.isArray(o.covers) && o.covers.length <= MAX_ARRAY
+          && Array.isArray(o.hazards) && o.hazards.length <= MAX_ARRAY;
     case 'ping':
     case 'pong':
       return num(o.t);

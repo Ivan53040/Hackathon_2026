@@ -64,7 +64,14 @@ function finish(): void {
     return;
   }
 
-  if (r.score >= CONFIG.CAST_THRESHOLD) {
+  const castThreshold = r.spell === 'attack'
+    ? CONFIG.CAST_THRESHOLD_ATTACK
+    : r.spell === 'rock'
+      ? CONFIG.CAST_THRESHOLD_ROCK
+      : r.spell === 'mushroom'
+        ? CONFIG.CAST_THRESHOLD_MUSHROOM
+        : CONFIG.CAST_THRESHOLD;
+  if (r.score >= castThreshold) {
     emit(EV.CAST, {
       spell: r.spell,
       score: r.score,
@@ -75,7 +82,7 @@ function finish(): void {
     return;
   }
 
-  // 0.65~0.80 給提示，更低不給 —— 玩家自己知道畫壞了
+  // 接近成功門檻時提供最接近的符文提示。
   const bestGuess = r.score >= CONFIG.HINT_THRESHOLD ? r.spell : null;
   emit(EV.FIZZLE, { bestGuess, score: r.score, points: stroke } as FizzleEvent);
 }

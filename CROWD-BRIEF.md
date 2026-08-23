@@ -53,7 +53,7 @@ export function disposeCrowd(): void;                     // 已接進 disposeVi
 場館海報      7.2 × 4.05，中心 (0, 5.8, −13)  ← 不要擋到它
 ```
 
-**看台**在 `roman_arena.glb` 裡，是對手後方與兩側那幾層階梯。
+**看台**在 `roman_arena_core.glb` 裡，是對手後方與兩側那幾層階梯。
 你要自己 raycast 或目視抓出座標 —— 大致在 `|x| > 6` 的兩側，以及 `z < −10` 的後方，
 高度隨階數往上。**先在畫面上放幾個測試方塊確認位置，再放人。**
 
@@ -104,7 +104,7 @@ export function disposeCrowd(): void;                     // 已接進 disposeVi
 - **不准在 `updateCrowd` 裡配置物件**（每幀熱路徑）。要動的用 `instanceMatrix` / `instanceColor`
 - **顏色一律從 `src/ui/tokens.css` 讀**，不准寫死 hex
 - **不准引入新的 npm 套件**
-- **不准加 GLB。** `public/` 已經有 2.7MB 的 `roman_arena.glb`，人群用程式生成的幾何就好
+- **不准加人群 GLB。** 建築已拆成 `roman_arena_core.glb` 與 `roman_arena_decor.glb`；人群仍然必須用程式生成的 `InstancedMesh`
 - **不准改 `src/core/config.ts` 的數值**
 - **不准 `git add` / `commit` / `push`**（見 `rules.md`）
 
