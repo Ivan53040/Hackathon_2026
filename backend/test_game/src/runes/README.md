@@ -5,9 +5,9 @@ $1 Unistroke，自己寫，不裝套件。兩個符文：**△ attack / □ wall
 ## 流程
 ```
 Shift 按下 → 每幀收 tracker.getFrame().tip → Shift 放開 → recognize()
-  score ≥ CAST_THRESHOLD(0.80)      → EV.CAST   (CastEvent)
-  HINT_THRESHOLD(0.65) ~ 0.80       → EV.FIZZLE (bestGuess 有值)
-  < 0.65 或點數 < MIN_STROKE_POINTS → EV.FIZZLE (bestGuess = null)
+  Z score ≥ 0.60；V score ≥ 0.68；星形 score ≥ 0.70；其他 score ≥ 0.72 → EV.CAST (CastEvent)
+  HINT_THRESHOLD(0.55) ~ 各技能成功門檻              → EV.FIZZLE (bestGuess 有值)
+  < 0.55 或點數 < MIN_STROKE_POINTS → EV.FIZZLE (bestGuess = null)
 ```
 魔量夠不夠不歸這裡管，那是 `match/` 的事（它會發 `EV.NO_MANA`）。
 

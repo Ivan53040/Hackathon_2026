@@ -12,8 +12,8 @@ const CAST_GUIDE_SPELLS = [
   { name: 'Fireball', gesture: 'Z', spell: 'attack' },
   { name: 'Rock', gesture: 'V', spell: 'rock' },
   { name: 'Spike', gesture: '∧', spell: 'spike' },
-  { name: 'Mushroom', gesture: 'm', spell: 'mushroom' },
-  { name: 'Wall', gesture: 'ARC', spell: 'wall' },
+  { name: 'Mushroom', gesture: 'star', spell: 'mushroom' },
+  { name: 'Wall', gesture: 'arc', spell: 'wall' },
 ] as const;
 let castGuideStartedAt = Number.NEGATIVE_INFINITY;
 let castGuideWasActive = false;
@@ -95,7 +95,37 @@ function drawCastGuide(ctx: CanvasRenderingContext2D, w: number, h: number, p: R
     ctx.textAlign = 'right';
     ctx.font = `700 ${Math.max(22, Math.min(38, rowHeight * 0.38))}px ${p.mono}`;
     ctx.fillStyle = p.meHot;
-    ctx.fillText(gesture, panelRight - 12, centerY + 12);
+    if (gesture === 'arc') {
+      const left = panelRight - Math.min(48, rowHeight * 0.72) - 12;
+      const right = panelRight - 12;
+      const bend = Math.min(18, rowHeight * 0.28);
+      ctx.strokeStyle = p.meHot;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(left, centerY);
+      ctx.quadraticCurveTo((left + right) / 2, centerY - bend, right, centerY);
+      ctx.stroke();
+    } else if (gesture === 'star') {
+      const centerX = panelRight - Math.min(28, rowHeight * 0.42) - 12;
+      const outerRadius = Math.min(18, rowHeight * 0.28);
+      const points = [
+        [0, -1], [1, 0.92], [-1, -0.34], [1, -0.34], [-1, 0.92], [0, -1],
+      ] as const;
+      ctx.strokeStyle = p.meHot;
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      points.forEach(([x, y], point) => {
+        const px = centerX + x * outerRadius;
+        const py = centerY + y * outerRadius;
+        if (point === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    } else {
+      ctx.fillText(gesture, panelRight - 12, centerY + 12);
+    }
     ctx.textAlign = 'left';
   });
   ctx.restore();
@@ -172,7 +202,7 @@ export function drawHud(ctx: CanvasRenderingContext2D, s: MatchState): void {
   ctx.save();
   ctx.font = `600 13px ${p.mono}`;
   ctx.fillStyle = p.dim;
-  ctx.fillText(`1 Fireball [Z]   2 Rock [V]   3 Spike [∧]   4 Mushroom [m]   5 Wall [ARC]`, 28, h - 28);
+  ctx.fillText(`1 Fireball [Z]   2 Rock [V]   3 Spike [∧]   4 Mushroom [☆]   5 Wall [⌒]`, 28, h - 28);
   ctx.textAlign = 'center';
   const minutes = Math.floor(s.timeLeft / 60), seconds = Math.floor(s.timeLeft % 60);
   ctx.fillText(`${minutes}:${String(seconds).padStart(2, '0')}`, w / 2, 34);

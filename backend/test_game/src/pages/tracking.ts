@@ -3,15 +3,12 @@ import { clearExternalFrame, publishExternalFrame } from '../tracking/tracker';
 
 export type TrackingFlow = 'singleplayer' | 'multiplayer';
 
-type Shape = 'z' | 'arc';
 type TrackingPhase = 'align' | 'positioning' | 'runes';
 type TrackingMessage = {
   source?: string;
   type?: string;
   frame?: { timestamp?: number; tip?: { x: number; y: number } | null; confidence?: number; tipConfidence?: number };
   phase?: TrackingPhase;
-  shape?: Shape;
-  confidence?: number;
 };
 
 let enterTrackingPage: ((usePen: boolean, flow: TrackingFlow) => void) | null = null;
@@ -26,7 +23,11 @@ let enter: HTMLButtonElement | null = null;
 let title: HTMLElement | null = null;
 let copy: HTMLElement | null = null;
 let lockLabel: HTMLElement | null = null;
-const passed = new Set<Shape>();
+let readyOverlay: HTMLElement | null = null;
+let readyCount: HTMLElement | null = null;
+let readyCountdownTimer: number | null = null;
+
+const READY_COUNTDOWN_MS = 3000;
 
 // Matches the tracking page's small A / tip-only cell in normalized camera coordinates.
 const TIP_TARGET = { x: 0.825, y: 0.255, width: 0.03, height: 0.055 };
@@ -61,9 +62,9 @@ function setPhase(phase: TrackingPhase): void {
     copy!.textContent = 'Follow the glowing movement prompts. Keep the wand tip visible inside the test area.';
     update('定位測試已開始，請跟隨畫面指示移動筆尖。');
   } else if (phase === 'runes') {
-    title!.textContent = 'Rune check';
-    copy!.textContent = 'Hold Shift, draw Z and ARC, then release Shift to submit each rune.';
-    update('定位完成。請畫出 Z 和 ARC 完成最後測試。');
+    title!.textContent = 'Calibration complete';
+    copy!.textContent = 'Wand linked. Entering the five-spell test arena.';
+    update('定位完成，正在進入五技能測試場。');
   }
 }
 
@@ -77,14 +78,31 @@ function setTipReady(ready: boolean): void {
 }
 
 function resetProgress(): void {
-  passed.clear();
   transitioning = false;
   if (enter) enter.disabled = true;
-  for (const item of page?.querySelectorAll<HTMLElement>('[data-shape]') ?? []) {
-    item.classList.remove('passed');
-    const result = item.querySelector('b');
-    if (result) result.textContent = 'WAIT';
-  }
+}
+
+function stopReadyCountdown(hide = true): void {
+  if (readyCountdownTimer !== null) window.clearInterval(readyCountdownTimer);
+  readyCountdownTimer = null;
+  if (hide && readyOverlay) readyOverlay.hidden = true;
+}
+
+function startReadyCountdown(): void {
+  if (readyCountdownTimer !== null || transitioning || !readyOverlay || !readyCount) return;
+  const endsAt = performance.now() + READY_COUNTDOWN_MS;
+  readyOverlay.hidden = false;
+  readyCount.textContent = '3';
+  readyCountdownTimer = window.setInterval(() => {
+    const remaining = endsAt - performance.now();
+    if (remaining <= 0) {
+      stopReadyCountdown(false);
+      readyCount!.textContent = 'GO';
+      continueAfterTest(true);
+      return;
+    }
+    readyCount!.textContent = String(Math.ceil(remaining / 1000));
+  }, 50);
 }
 
 function armWandTest(): void {
@@ -108,11 +126,13 @@ function armWandTest(): void {
 function continueAfterTest(usePen: boolean): void {
   if (transitioning || !enterTrackingPage) return;
   transitioning = true;
+  stopReadyCountdown(false);
   enter!.disabled = true;
   enterTrackingPage(usePen, activeFlow);
 }
 
 function retryTracking(): void {
+  stopReadyCountdown();
   clearExternalFrame();
   frame?.contentWindow?.postMessage({ source: 'runespire-tracking', type: 'reset' }, location.origin);
   enterTracking(activeFlow);
@@ -127,6 +147,13 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
   el.innerHTML = `
     <iframe class="tracking-frame" title="Wand tracking calibration" src="/tracking/index.html"></iframe>
     <div class="tracking-vignette" aria-hidden="true"></div>
+
+    <section class="tracking-ready-screen" data-ready-screen hidden aria-live="assertive">
+      <p>CALIBRATION COMPLETE</p>
+      <h1>Ready to try your spell?</h1>
+      <strong data-ready-count>3</strong>
+      <small>ENTERING SPELL TEST</small>
+    </section>
 
     <header class="tracking-header">
       <div class="tracking-brand"><span>R</span><p><b>RUNESPIRE</b><small>WAND ATTUNEMENT</small></p></div>
@@ -149,10 +176,6 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
       </div>
       <p class="tracking-status" data-status>請將筆尖放進 A 框，等待光點出現。</p>
       <div class="tracking-space-prompt"><kbd>SPACEBAR</kbd><span>START POSITION TEST</span></div>
-      <div class="tracking-runes" aria-label="Rune test progress">
-        <span data-shape="z">Z <b>WAIT</b></span>
-        <span data-shape="arc">ARC <b>WAIT</b></span>
-      </div>
       <button data-enter hidden disabled>Continue</button>
     </section>
 
@@ -161,7 +184,7 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
       <i></i>
       <div data-step="positioning"><b>02</b><span>POSITION TEST</span></div>
       <i></i>
-      <div data-step="runes"><b>03</b><span>RUNE CHECK</span></div>
+      <div data-step="runes"><b>03</b><span>SPELL TEST</span></div>
     </footer>
   `;
   register('tracking', el);
@@ -171,6 +194,8 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
   title = el.querySelector<HTMLElement>('[data-title]');
   copy = el.querySelector<HTMLElement>('[data-copy]');
   lockLabel = el.querySelector<HTMLElement>('[data-lock]');
+  readyOverlay = el.querySelector<HTMLElement>('[data-ready-screen]');
+  readyCount = el.querySelector<HTMLElement>('[data-ready-count]');
   enter = el.querySelector<HTMLButtonElement>('[data-enter]');
   const mouse = el.querySelector<HTMLButtonElement>('[data-mouse]')!;
   const retry = el.querySelector<HTMLButtonElement>('[data-retry]')!;
@@ -187,21 +212,7 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
     if (message.type === 'space') armWandTest();
     if (armed && message.type === 'phase' && (message.phase === 'positioning' || message.phase === 'runes')) {
       setPhase(message.phase);
-    }
-    if (!armed || message.type !== 'gesture' || (message.shape !== 'z' && message.shape !== 'arc')) return;
-
-    passed.add(message.shape);
-    const item = el.querySelector<HTMLElement>(`[data-shape="${message.shape}"]`);
-    if (item) {
-      item.classList.add('passed');
-      item.querySelector('b')!.textContent = `${Math.round((message.confidence ?? 0) * 100)}% PASS`;
-    }
-    if (passed.size === 2) {
-      enter!.disabled = false;
-      update('測試完成，正在進入自由練習。');
-      window.setTimeout(() => continueAfterTest(true), 450);
-    } else {
-      update(`${message.shape === 'arc' ? 'ARC' : 'Z'} 已辨識，請完成另一個符文。`);
+      if (message.phase === 'runes') startReadyCountdown();
     }
   };
   addEventListener('message', onMessage);
@@ -221,6 +232,7 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
 }
 
 export function enterTracking(flow: TrackingFlow): void {
+  stopReadyCountdown();
   activeFlow = flow;
   armed = false;
   tipInTarget = false;

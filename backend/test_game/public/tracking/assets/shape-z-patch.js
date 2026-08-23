@@ -242,7 +242,7 @@ function recognizeShape(input, xScale = 1) {
 
 const SHAPE_CATALOG = [
   ['z', 'Z', 'Z'],
-  ['arc', '⌒', 'Arc'],
+  ['arc', '⌒', 'Wall'],
 ];
 const icons = Object.fromEntries(SHAPE_CATALOG.map(([name, icon]) => [name, icon]));
 const labels = Object.fromEntries(SHAPE_CATALOG.map(([name, , label]) => [name, label.toUpperCase()]));

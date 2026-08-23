@@ -16,9 +16,15 @@ export const CONFIG = {
   CV_HZ: 30,
 
   // ── Runes [B] ─────────────────────────────────
-  CAST_THRESHOLD: 0.80,
-  HINT_THRESHOLD: 0.65,
-  MIN_STROKE_POINTS: 8,
+  CAST_THRESHOLD: 0.72,
+  CAST_THRESHOLD_ATTACK: 0.60,
+  CAST_THRESHOLD_ROCK: 0.68,
+  CAST_THRESHOLD_MUSHROOM: 0.70,
+  HINT_THRESHOLD: 0.55,
+  MIN_STROKE_POINTS: 6,
+  GESTURE_DISTANCE_TOLERANCE: { default: 0.38, z: 0.48, v: 0.46 },
+  GESTURE_MIN_SCORE: { default: 0.58, z: 0.53, v: 0.54, arc: 0.56 },
+  GESTURE_MIN_MARGIN: { default: 0.025, z: 0.015, v: 0.015 },
   MAX_STROKE_MS: 4000,
   RESAMPLE_N: 64,
   CORNER_ANGLE_DEG: 55,         // legacy tuning retained for the tracking page

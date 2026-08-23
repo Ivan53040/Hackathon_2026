@@ -273,8 +273,9 @@ function resolveProjectile(owner: Side, spell: 'attack' | 'rock', toX: number): 
   }
 
   const dmg = spell === 'rock' ? CONFIG.DMG_ROCK : CONFIG.DMG_ATTACK;
-  target.hp = Math.max(0, target.hp - dmg);
-  emit(EV.SPELL_HIT, { target: targetSide, x: toX, dmg, hpLeft: target.hp, spell } as SpellHit);
+  const appliedDamage = practiceMode && targetSide === 'them' ? 0 : dmg;
+  target.hp = Math.max(0, target.hp - appliedDamage);
+  emit(EV.SPELL_HIT, { target: targetSide, x: toX, dmg: appliedDamage, hpLeft: target.hp, spell } as SpellHit);
   if (target.hp <= 0 && !practiceMode) finish(owner, 'kill');
 }
 
@@ -315,11 +316,12 @@ function advanceHazards(dt: number): void {
       hazard.hit = true;
       const targetSide: Side = hazard.owner === 'me' ? 'them' : 'me';
       const target = targetSide === 'me' ? state.me : state.them;
-      target.hp = Math.max(0, target.hp - CONFIG.DMG_SPIKE);
+      const appliedDamage = practiceMode && targetSide === 'them' ? 0 : CONFIG.DMG_SPIKE;
+      target.hp = Math.max(0, target.hp - appliedDamage);
       emit(EV.SPELL_HIT, {
         target: targetSide,
         x: target.x,
-        dmg: CONFIG.DMG_SPIKE,
+        dmg: appliedDamage,
         hpLeft: target.hp,
         spell: 'spike',
       } as SpellHit);

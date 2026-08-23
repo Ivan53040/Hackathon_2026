@@ -15,7 +15,7 @@ export interface Recognition {
   corners: number;
 }
 
-type Shape = 'z' | 'v' | 'invertedV' | 'm' | 'arc';
+type Shape = 'z' | 'v' | 'invertedV' | 'star' | 'arc';
 const clamp = (value: number, min = 0, max = 1): number => Math.min(max, Math.max(min, value));
 const distance = (a: Vec2, b: Vec2): number => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -91,7 +91,11 @@ const RAW: Record<Shape, Vec2[]> = {
   v: [{ x: 0.08, y: 0.2 }, { x: 0.5, y: 0.84 }, { x: 0.92, y: 0.2 }],
   // Screen Y grows downwards: this is ∧ / A without the crossbar.
   invertedV: [{ x: 0.08, y: 0.84 }, { x: 0.5, y: 0.16 }, { x: 0.92, y: 0.84 }],
-  m: [{ x: 0.06, y: 0.82 }, { x: 0.06, y: 0.2 }, { x: 0.28, y: 0.62 }, { x: 0.5, y: 0.2 }, { x: 0.72, y: 0.62 }, { x: 0.94, y: 0.2 }],
+  // Mushroom is a single-stroke five-point star / pentagram.
+  star: [
+    { x: 0.5, y: 0.06 }, { x: 0.92, y: 0.88 }, { x: 0.06, y: 0.34 },
+    { x: 0.94, y: 0.34 }, { x: 0.08, y: 0.88 }, { x: 0.5, y: 0.06 },
+  ],
   // Defense arc: a single arch, open toward the player.
   arc: [{ x: 0.08, y: 0.78 }, { x: 0.22, y: 0.42 }, { x: 0.5, y: 0.16 }, { x: 0.78, y: 0.42 }, { x: 0.92, y: 0.78 }],
 };
@@ -123,9 +127,15 @@ function scoreShape(shape: Shape, points: readonly Vec2[]): number {
   const normalized = normalize(points);
   const reversed = [...normalized].reverse();
   const direct = templateDistance(normalized, NORMALIZED[shape]);
-  const allowReverse = shape === 'z';
+  // Stroke direction is free; V / ∧ orientation is still protected by directionScore.
+  const allowReverse = true;
   const best = allowReverse ? Math.min(direct, templateDistance(reversed, NORMALIZED[shape])) : direct;
-  const geometry = clamp(1 - best / 0.38);
+  const tolerance = shape === 'z'
+    ? CONFIG.GESTURE_DISTANCE_TOLERANCE.z
+    : shape === 'v'
+      ? CONFIG.GESTURE_DISTANCE_TOLERANCE.v
+      : CONFIG.GESTURE_DISTANCE_TOLERANCE.default;
+  const geometry = clamp(1 - best / tolerance);
   return geometry * 0.78 + directionScore(shape, points) * 0.22;
 }
 
@@ -135,20 +145,31 @@ export function recognize(input: readonly Vec2[]): Recognition | null {
   if (points.length < CONFIG.MIN_STROKE_POINTS) return null;
   const frame = bbox(points);
   const diagonal = Math.hypot(frame.w, frame.h);
-  if (diagonal < 0.075 || pathLength(points) < 0.09) return null;
+  if (diagonal < 0.06 || pathLength(points) < 0.075) return null;
 
   const ranked = (Object.keys(RAW) as Shape[]).sort((a, b) => scoreShape(b, points) - scoreShape(a, points));
   const shape = ranked[0];
   const confidence = scoreShape(shape, points);
   const margin = confidence - scoreShape(ranked[1], points);
-  const minimum = shape === 'm' ? 0.62 : 0.64;
-  if (confidence < minimum || margin < 0.045) return null;
+  const minimum = shape === 'z'
+    ? CONFIG.GESTURE_MIN_SCORE.z
+    : shape === 'v'
+      ? CONFIG.GESTURE_MIN_SCORE.v
+      : shape === 'arc'
+        ? CONFIG.GESTURE_MIN_SCORE.arc
+        : CONFIG.GESTURE_MIN_SCORE.default;
+  const minimumMargin = shape === 'z'
+    ? CONFIG.GESTURE_MIN_MARGIN.z
+    : shape === 'v'
+      ? CONFIG.GESTURE_MIN_MARGIN.v
+      : CONFIG.GESTURE_MIN_MARGIN.default;
+  if (confidence < minimum || margin < minimumMargin) return null;
 
-  const spell: Record<Shape, Spell> = { z: 'attack', v: 'rock', invertedV: 'spike', m: 'mushroom', arc: 'wall' };
+  const spell: Record<Shape, Spell> = { z: 'attack', v: 'rock', invertedV: 'spike', star: 'mushroom', arc: 'wall' };
   return {
     spell: spell[shape],
     score: confidence,
     templatePoints: fitTemplate(shape, points),
-    corners: shape === 'm' ? 5 : shape === 'z' ? 3 : 2,
+    corners: shape === 'star' ? 5 : shape === 'z' ? 3 : 2,
   };
 }

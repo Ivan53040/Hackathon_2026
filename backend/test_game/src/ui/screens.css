@@ -22,6 +22,22 @@
     linear-gradient(90deg, color-mix(in srgb, var(--void) 94%, transparent) 0%, color-mix(in srgb, var(--void) 72%, transparent) 32%, transparent 62%),
     linear-gradient(180deg, color-mix(in srgb, var(--void) 78%, transparent), transparent 26%, transparent 72%, color-mix(in srgb, var(--void) 88%, transparent));
 }
+.tracking-ready-screen {
+  position: absolute; z-index: 12; inset: 0;
+  display: grid; place-content: center; justify-items: center; gap: var(--s3);
+  color: var(--parchment); text-align: center;
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--them-hot) 38%, transparent), transparent 38%),
+    linear-gradient(145deg, var(--them), color-mix(in srgb, var(--them) 62%, var(--void)));
+}
+.tracking-ready-screen[hidden] { display: none; }
+.tracking-ready-screen p, .tracking-ready-screen small { margin: 0; font: 600 var(--t-xs) var(--font-mono); letter-spacing: .2em; }
+.tracking-screen .tracking-ready-screen h1 { margin: 0; color: var(--parchment); font-size: clamp(var(--t-xl), 6vw, var(--t-2xl)); }
+.tracking-ready-screen strong {
+  display: grid; place-items: center; width: calc(var(--s6) * 1.5); height: calc(var(--s6) * 1.5);
+  border: 1px solid var(--them-hot); border-radius: 50%; color: var(--parchment);
+  font: 700 var(--t-2xl) var(--font-mono); box-shadow: 0 0 var(--s5) color-mix(in srgb, var(--them-hot) 45%, transparent);
+}
 .tracking-header {
   position: absolute; z-index: 4; top: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;
@@ -75,13 +91,6 @@
   border-radius: var(--radius); color: var(--parchment); background: color-mix(in srgb, var(--struct) 20%, transparent);
   font: 600 var(--t-xs) var(--font-mono); text-align: center;
 }
-.tracking-runes { display: none; grid-template-columns: repeat(2, 1fr); gap: var(--s2); margin-top: var(--s3); }
-.tracking-runes span { padding: var(--s2); border: 1px solid var(--struct); color: var(--dim); font: var(--t-lg) var(--font-mono); }
-.tracking-runes b { float: right; padding-top: var(--s1); color: var(--dim); font-size: var(--t-xs); }
-.tracking-runes .passed { border-color: var(--me); color: var(--me-hot); }
-.tracking-runes .passed b { color: var(--me); }
-.tracking-screen[data-phase="runes"] .tracking-runes { display: grid; }
-
 .tracking-flow {
   position: absolute; z-index: 4; left: 50%; bottom: var(--s4); transform: translateX(-50%);
   display: flex; align-items: center; width: min(680px, calc(100vw - var(--s5)));
@@ -143,9 +152,33 @@
 .practice-panel h1 { margin: 0 0 var(--s2); font-size: var(--t-lg); color: var(--parchment); }
 .practice-spells { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; }
 .practice-spells div { display: grid; gap: 2px; padding: var(--s2); background: color-mix(in srgb, var(--struct) 24%, transparent); }
+.practice-spells div.passed { outline: 1px solid var(--me); background: color-mix(in srgb, var(--me) 18%, transparent); }
 .practice-spells b { color: var(--me-hot); font: 700 var(--t-lg) var(--font-mono); }
+.practice-spells .gesture-curve { display: grid; place-items: center; height: 1.4em; }
+.practice-spells .gesture-curve svg { width: 2.2em; height: 1.35em; overflow: visible; }
+.practice-spells .gesture-curve path { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; }
+.practice-spells .gesture-star { display: grid; place-items: center; height: 1.4em; }
+.practice-spells .gesture-star svg { width: 1.6em; height: 1.6em; overflow: visible; }
+.practice-spells .gesture-star path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
 .practice-spells span { color: var(--parchment); font-size: var(--t-xs); }
 .practice-spells small { color: var(--dim); font: 10px var(--font-mono); }
+.practice-spells em { color: var(--dim); font: 600 10px var(--font-mono); font-style: normal; letter-spacing: .08em; }
+.practice-spells .passed em { color: var(--me-hot); }
+.practice-result { margin: var(--s2) 0 0; padding: var(--s2); border: 1px solid var(--struct); color: var(--dim); font: 600 var(--t-xs) var(--font-mono); letter-spacing: .05em; }
+.practice-result[data-state="success"] { border-color: var(--me); color: var(--me-hot); background: color-mix(in srgb, var(--me) 12%, transparent); }
+.practice-result[data-state="failure"] { border-color: var(--magic); color: var(--magic); }
+.practice-tutorial { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--s2); margin-top: var(--s2); }
+.practice-tutorial > div, .practice-tutorial > button {
+  display: flex; align-items: center; gap: var(--s2); min-width: 0; padding: var(--s2);
+  border: 1px solid var(--struct); color: var(--parchment); background: color-mix(in srgb, var(--struct) 16%, transparent);
+  font: inherit; text-align: left;
+}
+.practice-tutorial > button { border-color: var(--me); cursor: pointer; }
+.practice-tutorial > button:disabled { opacity: .45; cursor: default; }
+.practice-tutorial kbd { padding: var(--s2); border: 1px solid var(--me); color: var(--me-hot); font: 700 var(--t-xs) var(--font-mono); }
+.practice-tutorial span { display: grid; gap: var(--s1); }
+.practice-tutorial b { color: var(--me-hot); font: 700 var(--t-xs) var(--font-mono); letter-spacing: .08em; }
+.practice-tutorial small { color: var(--dim); font-size: var(--t-xs); }
 .practice-hint { margin: var(--s2) 0 0; color: var(--dim); font: var(--t-xs) var(--font-mono); }
 .practice-countdown { min-height: 1.2em; margin: var(--s1) 0 0; color: var(--me-hot); font: 700 var(--t-lg) var(--font-mono); }
 .difficulty-actions small { display: block; margin-top: var(--s1); color: var(--dim); font: 10px var(--font-mono); }
@@ -153,6 +186,7 @@
 
 @media (max-width: 42rem) {
   .practice-spells { grid-template-columns: repeat(3, 1fr); }
+  .practice-tutorial { grid-template-columns: 1fr; }
 }
 
 /*
