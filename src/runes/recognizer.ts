@@ -146,9 +146,13 @@ export function recognize(input: readonly Vec2[]): Recognition | null {
     ? CONFIG.GESTURE_MIN_SCORE.z
     : shape === 'v'
       ? CONFIG.GESTURE_MIN_SCORE.v
+      : shape === 'invertedV'
+        ? CONFIG.GESTURE_MIN_SCORE.invertedV
+        : shape === 'star'
+          ? CONFIG.GESTURE_MIN_SCORE.star
       : shape === 'arc'
-        ? CONFIG.GESTURE_MIN_SCORE.arc
-        : CONFIG.GESTURE_MIN_SCORE.default;
+            ? CONFIG.GESTURE_MIN_SCORE.arc
+            : CONFIG.GESTURE_MIN_SCORE.default;
   const minimumMargin = shape === 'z'
     ? CONFIG.GESTURE_MIN_MARGIN.z
     : shape === 'v'

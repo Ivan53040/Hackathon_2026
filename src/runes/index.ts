@@ -68,9 +68,11 @@ function finish(): void {
     ? CONFIG.CAST_THRESHOLD_ATTACK
     : r.spell === 'rock'
       ? CONFIG.CAST_THRESHOLD_ROCK
+      : r.spell === 'spike'
+        ? CONFIG.CAST_THRESHOLD_SPIKE
       : r.spell === 'mushroom'
-        ? CONFIG.CAST_THRESHOLD_MUSHROOM
-        : CONFIG.CAST_THRESHOLD;
+          ? CONFIG.CAST_THRESHOLD_MUSHROOM
+          : CONFIG.CAST_THRESHOLD;
   if (r.score >= castThreshold) {
     emit(EV.CAST, {
       spell: r.spell,
