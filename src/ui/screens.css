@@ -163,14 +163,35 @@
   display: flex; flex-direction: column; align-items: center;
   justify-content: center;
   gap: var(--s4);
-  width: min(30rem, 88vw);
+  /*
+   * 碑寬跟著視窗長一點點。固定 30rem 在 1920 的投影機上會讓標題停在 63px，
+   * 等於作廢 --t-hero 的 7.5vw（00-brief.md D4：衝突時站觀眾那邊）。
+   * 上限 40rem —— 再寬就開始吃掉左右兩個法師。
+   */
+  width: min(clamp(30rem, 34vw, 40rem), 88vw);
   min-height: 100%;
   padding: var(--s5) var(--s4);
+  /*
+   * 碑面壓到剛好讀得到字，封面兩個法師仍然透得出來。
+   * 只羽化最外緣 8% —— 之前上下各留 22% 的淡出，正好讓最小的那行提示
+   * 落在底色最薄的地方，是整頁最難讀的一處。中段維持定值。
+   * blur 是這裡真正在做事的東西：把背後的高頻筆觸糊掉，
+   * 字才不會壓在火把與盾光的紋理上。
+   */
   background: linear-gradient(
-    color-mix(in srgb, var(--void) 88%, transparent) 0%,
-    color-mix(in srgb, var(--void) 95%, transparent) 22%,
-    color-mix(in srgb, var(--void) 95%, transparent) 78%,
-    color-mix(in srgb, var(--void) 88%, transparent) 100%);
+    color-mix(in srgb, var(--void) 34%, transparent) 0%,
+    color-mix(in srgb, var(--void) 62%, transparent) 8%,
+    color-mix(in srgb, var(--void) 62%, transparent) 92%,
+    color-mix(in srgb, var(--void) 34%, transparent) 100%);
+  backdrop-filter: blur(var(--s3)) saturate(.85);
+  /* 標題要對「碑寬」縮放而不是視窗寬，否則 RUNESPIRE 會壓過左右兩道邊線 */
+  container-type: inline-size;
+  /*
+   * 碑上所有文字共用一層極淡的外陰影。封面是張亮度起伏很大的圖，
+   * 單靠底色要壓到全圖最亮處就得把碑加深回黑板。這一層只在字的邊緣生效，
+   * 成本比整片加深低得多。
+   */
+  text-shadow: 0 var(--hairline) var(--s2) var(--void);
   /*
    * 唯一的破格：兩道邊線不同色。左＝我方暖金，右＝敵方冷藍，
    * 對應 key art 左右兩個法師的打光，也對應遊戲裡的識別色。
@@ -187,6 +208,16 @@
   margin: 0;
   font-family: var(--font-display);
   font-size: var(--t-hero);
+  /* 九個全大寫字母不准被切，也不准把碑撐開 */
+  max-width: 100%;
+}
+/*
+ * 碑上的標題改用容器單位。--t-hero 是 7.5vw，在寬螢幕上算出來比碑還寬 ——
+ * 這就是 RUNESPIRE 兩端穿出金／藍邊線的原因。13.2cqw 是把
+ * 「9 字 × Cinzel 平均字寬 × .045em 字距」反推回碑的內距寬度。
+ */
+.stele h1 {
+  font-size: clamp(2rem, 13.2cqw, 4.25rem);
   font-weight: 400;
   line-height: .95;
   /* 全大寫的襯線在標題級距需要正字距才不會擠 —— 但 .08em 太鬆，像沒調過 */
@@ -202,7 +233,11 @@
   text-transform: uppercase;
   color: var(--struct-lit);
   text-align: center;
+  /* .3em 字距在窄碑上會把這行推出邊界，允許它斷成兩行而不是溢出 */
+  max-width: 100%;
+  text-wrap: balance;
 }
+.stele .sub { color: color-mix(in srgb, var(--parchment) 55%, var(--struct-lit)); }
 
 
 .actions { display: flex; flex-direction: column; gap: var(--s2); width: min(340px, 80vw); }
@@ -274,8 +309,27 @@
 .note { font-size: var(--t-sm); color: var(--dim); max-width: 46ch; text-align: center; line-height: 1.7; }
 /* 等寬體比比例字寬約 15%，46ch 會讓句子在片語中間斷行（"in the air with / your wand."）。
    碑上的提示改成吃滿碑寬、字級降一級，斷行才落在句號上。 */
-.stele .note { max-width: 100%; font-size: var(--t-xs); line-height: 1.9; letter-spacing: .02em; }
-.stele .note { margin: 0; color: var(--struct-lit); }
+/*
+ * 碑上的提示原本是 --struct-lit 11px。--struct-lit 是「建築受光面」的顏色，
+ * 對深底成立，對這張封面的亮部不成立 —— 它是整頁第一個消失的東西。
+ * 提到接近 parchment，字級回到 --t-sm。它仍然是最低階的資訊，
+ * 靠字級與字重排序，不再靠「淡到看不見」排序。
+ */
+.stele .note {
+  max-width: 100%;
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: 1.8;
+  letter-spacing: .02em;
+  color: color-mix(in srgb, var(--parchment) 72%, var(--struct-lit));
+  /*
+   * 等寬體比比例字寬約 15%，放大到 --t-sm 後這句一定會斷兩行。
+   * balance 讓兩行等長，斷點落在片語之間，而不是留一個 "wand." 孤字。
+   */
+  text-wrap: balance;
+}
+/* 兩個按鍵名是這行的重點，給它們金色與字重，句子其餘部分維持次階 */
+.stele .note b { color: var(--me); font-weight: 700; }
 
 /*
  * 窄螢幕上封面被擠成兩條細邊，等於是縮小版桌機。
@@ -317,6 +371,11 @@
   letter-spacing: .22em;
   text-transform: uppercase;
 }
+.stele .runes i { color: color-mix(in srgb, var(--parchment) 62%, var(--struct-lit)); }
+/* 次要按鈕同理：碑變透明後，--struct-lit 的字壓在盾光上會斷掉 */
+.stele .btn:not(.primary) { color: color-mix(in srgb, var(--parchment) 78%, var(--struct-lit)); }
+/* 金底上的深色字不需要外陰影，會糊掉字腔 */
+.stele .btn.primary { text-shadow: none; }
 
 /* ── 首頁對話框 ───────────────────────────────
  * 不使用瀏覽器 prompt / alert：它們會跳回系統白色介面、按鈕語言不一致，
