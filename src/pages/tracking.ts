@@ -113,10 +113,23 @@ function applyReadyCopy(): void {
 function startReadyCountdown(): void {
   if (readyCountdownTimer !== null || transitioning || !readyOverlay || !readyCount) return;
   applyReadyCopy();
-  const endsAt = performance.now() + READY_COUNTDOWN_MS;
+  let endsAt = performance.now() + READY_COUNTDOWN_MS;
   readyOverlay.hidden = false;
   readyCount.textContent = '3';
   readyCountdownTimer = window.setInterval(() => {
+    // 連線對戰：對手還沒進房就把終點一直往後推，倒數原地不動。
+    // 少了這道閘，兩台各自數完各自的 3 秒，先校準完的那台會直接進場
+    // 對著一個還沒到的對手打 —— 畫面上是「Waiting」，行為卻不是。
+    if (activeFlow !== 'singleplayer') {
+      applyReadyCopy();
+      if (!hasPeer()) {
+        endsAt = performance.now() + READY_COUNTDOWN_MS;
+        readyCount!.textContent = '—';
+        readyOverlay!.dataset.waiting = 'true';
+        return;
+      }
+      delete readyOverlay!.dataset.waiting;
+    }
     const remaining = endsAt - performance.now();
     if (remaining <= 0) {
       stopReadyCountdown(false);
@@ -125,8 +138,6 @@ function startReadyCountdown(): void {
       return;
     }
     readyCount!.textContent = String(Math.ceil(remaining / 1000));
-    // 對手可能在倒數途中才校準完，文案要跟著換，不能停在「等待中」
-    if (activeFlow !== 'singleplayer') applyReadyCopy();
   }, 50);
 }
 

@@ -580,8 +580,19 @@
 }
 .tracking-ready-screen [data-ready-kicker] { color: var(--me); }
 .tracking-ready-screen [data-ready-foot] { color: var(--dim); }
+/* 等待中：倒數圈降下來，避免一個不會動的「3」看起來像當機 */
+.tracking-ready-screen[data-waiting] strong {
+  border-color: color-mix(in srgb, var(--me) 40%, var(--struct));
+  color: var(--dim); box-shadow: none;
+  animation: tracking-wait-pulse 1.6s var(--ease-out) infinite alternate;
+}
+@keyframes tracking-wait-pulse { to { opacity: .45; } }
+/*
+ * z-index 要壓過 .tracking-ready-screen（12）。等待對手時倒數會一直停住，
+ * 這排按鈕是玩家唯一的出口 —— 被覆蓋層蓋掉就等於卡死在那一頁。
+ */
 .tracking-header {
-  position: absolute; z-index: 4; top: 0; left: 0; right: 0;
+  position: absolute; z-index: 13; top: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;
   padding: var(--s3) var(--s4); border-bottom: 1px solid color-mix(in srgb, var(--struct) 42%, transparent);
   background: color-mix(in srgb, var(--void) 64%, transparent);
