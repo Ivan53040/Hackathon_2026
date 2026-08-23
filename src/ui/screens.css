@@ -560,18 +560,26 @@
   position: absolute; z-index: 12; inset: 0;
   display: grid; place-content: center; justify-items: center; gap: var(--s3);
   color: var(--parchment); text-align: center;
+  /*
+   * 原本整頁鋪 --them。那是**敵方**識別色 —— 用它畫「你準備好了」等於
+   * 把玩家自己的時刻塗成對手的顏色，跟場上的辨識規則打架，
+   * 也是它看起來突兀的原因。改回 --void 地面配 --me 金光暈，
+   * 跟其餘每一頁同一套語言。
+   */
   background:
-    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--them-hot) 38%, transparent), transparent 38%),
-    linear-gradient(145deg, var(--them), color-mix(in srgb, var(--them) 62%, var(--void)));
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--me) 16%, transparent), transparent 46%),
+    linear-gradient(160deg, color-mix(in srgb, var(--void) 96%, var(--struct)), var(--void));
 }
 .tracking-ready-screen[hidden] { display: none; }
 .tracking-ready-screen p, .tracking-ready-screen small { margin: 0; font: 600 var(--t-xs) var(--font-mono); letter-spacing: .2em; }
 .tracking-screen .tracking-ready-screen h1 { margin: 0; color: var(--parchment); font-size: clamp(var(--t-xl), 6vw, var(--t-2xl)); }
 .tracking-ready-screen strong {
   display: grid; place-items: center; width: calc(var(--s6) * 1.5); height: calc(var(--s6) * 1.5);
-  border: 1px solid var(--them-hot); border-radius: 50%; color: var(--parchment);
-  font: 700 var(--t-2xl) var(--font-mono); box-shadow: 0 0 var(--s5) color-mix(in srgb, var(--them-hot) 45%, transparent);
+  border: var(--hairline) solid var(--me); border-radius: 50%; color: var(--me-hot);
+  font: 700 var(--t-2xl) var(--font-mono); box-shadow: 0 0 var(--s5) color-mix(in srgb, var(--me) 32%, transparent);
 }
+.tracking-ready-screen [data-ready-kicker] { color: var(--me); }
+.tracking-ready-screen [data-ready-foot] { color: var(--dim); }
 .tracking-header {
   position: absolute; z-index: 4; top: 0; left: 0; right: 0;
   display: flex; align-items: center; justify-content: space-between;

@@ -1,5 +1,6 @@
 import { makeScreen, register, show, currentScreen } from './index';
 import { clearExternalFrame, publishExternalFrame } from '../tracking/tracker';
+import { hasPeer } from '../net';
 
 export type TrackingFlow = 'singleplayer' | 'multiplayer';
 
@@ -25,6 +26,9 @@ let copy: HTMLElement | null = null;
 let lockLabel: HTMLElement | null = null;
 let readyOverlay: HTMLElement | null = null;
 let readyCount: HTMLElement | null = null;
+let readyKicker: HTMLElement | null = null;
+let readyTitle: HTMLElement | null = null;
+let readyFoot: HTMLElement | null = null;
 let readyCountdownTimer: number | null = null;
 
 const READY_COUNTDOWN_MS = 3000;
@@ -88,8 +92,27 @@ function stopReadyCountdown(hide = true): void {
   if (hide && readyOverlay) readyOverlay.hidden = true;
 }
 
+/**
+ * 這一頁在單人與連線兩條流程都會出現，但接下來要發生的事完全不同 ——
+ * 單人是進法術練習場，連線是進對戰。原本兩邊都寫「Ready to try your spell」，
+ * 連線那邊等於在對手還沒校準完的時候騙玩家說可以開始了。
+ */
+function applyReadyCopy(): void {
+  if (!readyKicker || !readyTitle || !readyFoot) return;
+  if (activeFlow === 'singleplayer') {
+    readyKicker.textContent = 'CALIBRATION COMPLETE';
+    readyTitle.textContent = 'Ready to try your spells?';
+    readyFoot.textContent = 'ENTERING SPELL TEST';
+    return;
+  }
+  readyKicker.textContent = hasPeer() ? 'BOTH WANDS LINKED' : 'YOUR WAND IS LINKED';
+  readyTitle.textContent = hasPeer() ? 'Your opponent is ready' : 'Waiting for your opponent…';
+  readyFoot.textContent = hasPeer() ? 'ENTERING THE DUEL' : 'THEY ARE STILL CALIBRATING';
+}
+
 function startReadyCountdown(): void {
   if (readyCountdownTimer !== null || transitioning || !readyOverlay || !readyCount) return;
+  applyReadyCopy();
   const endsAt = performance.now() + READY_COUNTDOWN_MS;
   readyOverlay.hidden = false;
   readyCount.textContent = '3';
@@ -102,6 +125,8 @@ function startReadyCountdown(): void {
       return;
     }
     readyCount!.textContent = String(Math.ceil(remaining / 1000));
+    // 對手可能在倒數途中才校準完，文案要跟著換，不能停在「等待中」
+    if (activeFlow !== 'singleplayer') applyReadyCopy();
   }, 50);
 }
 
@@ -149,10 +174,10 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
     <div class="tracking-vignette" aria-hidden="true"></div>
 
     <section class="tracking-ready-screen" data-ready-screen hidden aria-live="assertive">
-      <p>CALIBRATION COMPLETE</p>
-      <h1>Ready to try your spell?</h1>
+      <p data-ready-kicker>CALIBRATION COMPLETE</p>
+      <h1 data-ready-title>Ready to try your spells?</h1>
       <strong data-ready-count>3</strong>
-      <small>ENTERING SPELL TEST</small>
+      <small data-ready-foot>ENTERING SPELL TEST</small>
     </section>
 
     <header class="tracking-header">
@@ -196,6 +221,9 @@ export function buildTracking(root: HTMLElement, onReady: (usePen: boolean, flow
   lockLabel = el.querySelector<HTMLElement>('[data-lock]');
   readyOverlay = el.querySelector<HTMLElement>('[data-ready-screen]');
   readyCount = el.querySelector<HTMLElement>('[data-ready-count]');
+  readyKicker = el.querySelector<HTMLElement>('[data-ready-kicker]');
+  readyTitle = el.querySelector<HTMLElement>('[data-ready-title]');
+  readyFoot = el.querySelector<HTMLElement>('[data-ready-foot]');
   enter = el.querySelector<HTMLButtonElement>('[data-enter]');
   const mouse = el.querySelector<HTMLButtonElement>('[data-mouse]')!;
   const retry = el.querySelector<HTMLButtonElement>('[data-retry]')!;
